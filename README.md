@@ -24,8 +24,7 @@
 ## 🖼️ 演示效果
 
 
-
-Uploading 20260827003227.mp4…
+https://github.com/user-attachments/assets/c67d653e-11fb-4e3e-a795-9dbbf4480a80
 
 
 ---
