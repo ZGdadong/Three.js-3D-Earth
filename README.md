@@ -21,9 +21,9 @@
 
 ---
 
-## 🖼️ 预览
+## 🖼️ 演示效果
 
-![预览](thumb.png)
+![演示效果](https://github.com/user-attachments/assets/a8dde66e-6484-4cc7-85f0-c50c0a944e7d)
 
 ---
 
