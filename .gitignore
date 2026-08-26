@@ -1,0 +1,13 @@
+# 依赖
+node_modules/
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+*.log
+
+# 与本项目无关的本地图片（wallhaven 壁纸）
+images/wallhaven-*
+
+# 可选的本地临时文件
+*.tmp

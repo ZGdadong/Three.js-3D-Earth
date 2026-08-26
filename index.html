@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Three.js 真实地球 · 无月球与太阳</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    /* 加载提示层 */
+    #loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: radial-gradient(ellipse at center, #06121f 0%, #000 70%);
+      color: #9fc3e8;
+      z-index: 20;
+      transition: opacity 0.6s ease;
+    }
+    #loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #loader .ring {
+      width: 54px;
+      height: 54px;
+      border: 3px solid rgba(120, 180, 255, 0.25);
+      border-top-color: #6db4ff;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    #loader .label {
+      font-size: 15px;
+      letter-spacing: 1px;
+    }
+    #loader .label b {
+      color: #cfe6ff;
+    }
+
+    /* HUD 说明 */
+    #hud {
+      position: fixed;
+      left: 18px;
+      bottom: 16px;
+      color: rgba(210, 232, 255, 0.82);
+      font-size: 13px;
+      line-height: 1.7;
+      background: rgba(6, 16, 30, 0.45);
+      border: 1px solid rgba(120, 180, 255, 0.18);
+      border-radius: 10px;
+      padding: 12px 16px;
+      backdrop-filter: blur(6px);
+      z-index: 10;
+      max-width: 300px;
+    }
+    #hud h1 {
+      font-size: 15px;
+      color: #bfe0ff;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    #hud .k {
+      color: #6db4ff;
+    }
+
+    /* 信息指示 */
+    #status {
+      position: fixed;
+      left: 18px;
+      top: 16px;
+      color: rgba(210, 232, 255, 0.9);
+      font-size: 13px;
+      background: rgba(6, 16, 30, 0.45);
+      border: 1px solid rgba(120, 180, 255, 0.18);
+      border-radius: 10px;
+      padding: 8px 14px;
+      backdrop-filter: blur(6px);
+      z-index: 10;
+    }
+    #status b {
+      color: #cfe6ff;
+    }
+    #status .dim {
+      color: #7ba6d6;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* 保存/操作提示 toast */
+    #toast {
+      position: fixed;
+      left: 50%;
+      top: 20px;
+      transform: translateX(-50%) translateY(-12px);
+      background: rgba(6, 16, 30, 0.92);
+      color: #dff1ff;
+      border: 1px solid rgba(120, 180, 255, 0.35);
+      padding: 9px 18px;
+      border-radius: 20px;
+      font-size: 14px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 30;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* 让 lil-gui 面板可滚动，保证所有参数（含保存按钮）都能看到 */
+    .lil-gui.root,
+    .lil-gui {
+      max-height: calc(100vh - 24px);
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    .lil-gui::-webkit-scrollbar {
+      width: 8px;
+    }
+    .lil-gui::-webkit-scrollbar-thumb {
+      background: rgba(120, 180, 255, 0.3);
+      border-radius: 4px;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+        "lil-gui": "https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- 加载层 -->
+  <div id="loader">
+    <div class="ring"></div>
+    <div class="label">正在加载地球纹理 <b id="progress">0%</b></div>
+  </div>
+
+  <!-- 操作提示 -->
+  <div id="toast"></div>
+
+  <!-- 状态信息 -->
+  <div id="status">
+    地图来源：<b>NASA Blue Marble</b> · 贴图：8K<br />
+    <span class="dim">昼夜交替 &nbsp;·&nbsp; 云层 &nbsp;·&nbsp; 大气辉光 &nbsp;·&nbsp; 星空闪烁 &nbsp;·&nbsp; 护罩·能量波</span>
+  </div>
+
+  <!-- 操作说明 -->
+  <div id="hud">
+    <h1>🌍 三维真实地球</h1>
+    <div><span class="k">拖动</span>：旋转视角</div>
+    <div><span class="k">滚轮</span>：缩放</div>
+    <div><span class="k">右键拖动</span>：平移</div>
+    <div style="margin-top:6px;opacity:.75">
+      已移除太阳与月球，仅保留昼夜光照。
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
