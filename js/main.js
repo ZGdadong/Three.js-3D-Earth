@@ -127,9 +127,9 @@ const params = {
   flightCometWidth: 10, // 彗星粗细（越大越细）
   flightCometSize: 2, // 彗星整体大小
   flightSpeed: 1, // 飞行速度倍率
-  flightTrackWidth: 0.012, // 轨道线宽度
+  flightTrackWidth: 0.012, // 轨道线宽度（圆柱半径）
   flightTrackColor: "#3a6aa0", // 轨道线颜色
-  flightTrackOpacity: 0.28, // 轨道线透明度
+  flightTrackOpacity: 0.5, // 轨道线透明度
   // 终点扩散波
   waveColor: "#40e0ff", // 扩散波颜色
   waveOpacity: 1.0, // 扩散波透明度
