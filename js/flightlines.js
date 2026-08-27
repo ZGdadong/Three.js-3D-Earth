@@ -396,7 +396,7 @@ export class FlightLines {
       l.flyMat.uniforms.uWidth.value = width;
       l.flyMat.uniforms.uSize.value = size;
       l.flyMat.uniforms.uColor.value.set(color);
-      l.trackMat.uniforms.uColor.value.set(color);
+      l.trackMat.uniforms.uColor.value.set(style.trackColor || color);
       l.trackMat.uniforms.uOpacity.value = trackOpacity;
     });
 
