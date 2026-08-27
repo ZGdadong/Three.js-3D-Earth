@@ -28,10 +28,19 @@ import {
   applyStaticText,
 } from "./i18n.js";
 
-// 默认飞线分组：{ source: 起点城市, targets: [终点城市...] }（城市名须在 CITIES 中）
+// 默认飞线分组：每行 { source: 起点城市, target: 终点城市 }（城市名须在 CITIES 中）
 const DEFAULT_FLIGHT_GROUPS = [
-  { source: "北京", targets: ["上海", "广州", "深圳", "成都", "杭州"] },
-  { source: "上海", targets: ["东京", "纽约", "伦敦", "新加坡", "悉尼"] },
+  { source: "北京", target: "上海" },
+  { source: "北京", target: "广州" },
+  { source: "北京", target: "深圳" },
+  { source: "北京", target: "成都" },
+  { source: "北京", target: "杭州" },
+  { source: "上海", target: "东京" },
+  { source: "上海", target: "纽约" },
+  { source: "上海", target: "伦敦" },
+  { source: "上海", target: "新加坡" },
+  { source: "上海", target: "悉尼" },
+  { source: "芝加哥", target: "东京" },
 ];
 
 const degToRad = THREE.MathUtils.degToRad;
@@ -80,73 +89,73 @@ const params = {
   // 昼夜 / 时段
   timePreset: "auto", // auto | noon | dusk | dawn | night
   sunAzimuthDeg: 0, // 太阳方位角（0 = 正对相机侧）
-  sunElevationDeg: 12, // 太阳高度角（0=地平线, 90=头顶）
+  sunElevationDeg: 21, // 太阳高度角（0=地平线, 90=头顶）
   sunAutoRotate: true, // 自动昼夜循环
-  sunOrbitSpeedDeg: 3, // 昼夜循环速度（度/秒）
+  sunOrbitSpeedDeg: 2, // 昼夜循环速度（度/秒）
   transitionWidth: 0.22, // 晨昏线宽度
-  duskStrength: 0.65, // 黄昏暖色调强度
+  duskStrength: 1, // 黄昏暖色调强度
   duskWidth: 0.35, // 黄昏暖色覆盖范围（沿晨昏线的距离）
-  dayBoost: 1.0, // 白昼亮度
-  nightBoost: 1.25, // 夜晚城市灯光亮度
-  normalStrength: 0.7, // 法线贴图强度（0 = 关闭）
+  dayBoost: 1.5, // 白昼亮度
+  nightBoost: 2.75, // 夜晚城市灯光亮度
+  normalStrength: 2, // 法线贴图强度（0 = 关闭）
 
   // 地球自转
   earthSpin: true,
-  earthSpinSpeed: 0.02,
+  earthSpinSpeed: 0.066,
 
   // 云层
   cloudsVisible: true,
-  cloudOpacity: 0.6,
+  cloudOpacity: 0.5,
   cloudSpeed: 1.6,
 
   // 大气辉光
   atmosphereVisible: true,
-  atmosphereBrightness: 0.45,
+  atmosphereBrightness: 0.61,
 
   // 星空
   starsVisible: true,
   starRotate: true,
-  starRotationSpeed: 0.04,
-  starSwayAmplitude: 0.1,
+  starRotationSpeed: 0.015,
+  starSwayAmplitude: 0.18,
   starSwaySpeed: 0.15,
   starTwinkle: true,
-  starOpacityMin: 0.4,
-  starOpacityMax: 1.0,
+  starOpacityMin: 0.3,
+  starOpacityMax: 0.75,
 
   // 城市标注
   markersVisible: false, // 默认不显示城市名称（飞线场景要求不显示城市名）
 
   // 护罩（能量波从北极扫到南极，路过的区域才显示）
   shieldVisible: true,
-  shieldOpacity: 0.9, // 发光强度
+  shieldOpacity: 0.25, // 发光强度
   shieldDirection: "northToSouth", // 扫描方向：northToSouth(北极→南极) | southToNorth(南极→北极)
-  shieldScanPeriod: 5, // 扫描周期（秒）：每隔 N 秒开始下一次扫描
-  shieldScanDuration: 5, // 单次扫描所需时间（秒）：一次扫完所用的时长（可小于周期，留出空档）
-  shieldBandWidth: 0.12, // 能量带宽度
-  shieldRepeat: 1, // 纹理平铺次数
-  shieldGlow: 1.0, // 边缘亮度
-  shieldFresnel: 2.5, // 边缘锐度
-  shieldColor: "#3fd0ff", // 护罩颜色
+  shieldScanPeriod: 10, // 扫描周期（秒）：每隔 N 秒开始下一次扫描
+  shieldScanDuration: 6, // 单次扫描所需时间（秒）：一次扫完所用的时长（可小于周期，留出空档）
+  shieldBandWidth: 0.03, // 能量带宽度
+  shieldRepeat: 15, // 纹理平铺次数
+  shieldGlow: 3, // 边缘亮度
+  shieldFresnel: 3, // 边缘锐度
+  shieldColor: "#a5b2b6", // 护罩颜色
 
   // 飞线（1 起点 + n 终点，多组）
   flightVisible: true,
-  flightLineColor: "#4fd0ff", // 飞线颜色
-  flightLineOpacity: 1.0, // 飞线透明度
-  flightArcHeight: 0.35, // 弧线高度（相对地球半径的比例）
-  flightCometLength: 60, // 彗星尾巴长度（点数）
-  flightCometWidth: 10, // 彗星粗细（越大越细）
-  flightCometSize: 2, // 彗星整体大小
-  flightSpeed: 1, // 飞行速度倍率
-  flightTrackWidth: 0.012, // 轨道线宽度（圆柱半径）
+  flightLineColor: "#ccd7db", // 飞线颜色
+  flightLineOpacity: 0.81, // 飞线透明度
+  flightArcHeight: 0.05, // 弧线高度（相对地球半径的比例）
+  flightCometLength: 40, // 彗星尾巴长度（点数）
+  flightCometWidth: 23, // 彗星粗细（越大越细）
+  flightCometSize: 1, // 彗星整体大小
+  flightSpeed: 0.6, // 飞行速度倍率
+  flightTrackWidth: 0.002, // 轨道线宽度（圆柱半径）
   flightTrackColor: "#3a6aa0", // 轨道线颜色
-  flightTrackOpacity: 0.5, // 轨道线透明度
+  flightTrackOpacity: 0.8, // 轨道线透明度
   // 终点扩散波
-  waveColor: "#40e0ff", // 扩散波颜色
-  waveOpacity: 1.0, // 扩散波透明度
-  waveHeight: 0.6, // 扩散波高度
-  waveRadius: 0.6, // 扩散波半径
-  waveSpeed: 0.9, // 扩散波速度
-  waveBright: 1.0, // 扩散波亮度
+  waveColor: "#ffffff", // 扩散波颜色
+  waveOpacity: 1, // 扩散波透明度
+  waveHeight: 0.05, // 扩散波高度
+  waveRadius: 0.03, // 扩散波半径
+  waveSpeed: 0.2, // 扩散波速度
+  waveBright: 0.2, // 扩散波亮度
   flightGroupsJson: JSON.stringify(DEFAULT_FLIGHT_GROUPS, null, 2), // 可编辑的分组数据
 };
 
@@ -157,7 +166,7 @@ const sunState = { azimuthDeg: 0 };
 // ---------------------------------------------------------------------------
 // 参数持久化（保存 / 载入 / 恢复默认 / 导出 JSON）
 // ---------------------------------------------------------------------------
-const PARAMS_KEY = "earth_params_v1";
+const PARAMS_KEY = "earth_params_v2"; // v2：更新默认参数（夜间/护罩/飞线风格），旧版 v1 不再恢复，确保新默认对所有人生效
 const PARAM_KEYS = [
   "timePreset", "sunAzimuthDeg", "sunElevationDeg", "sunAutoRotate", "sunOrbitSpeedDeg",
   "transitionWidth", "duskStrength", "duskWidth", "dayBoost", "nightBoost", "normalStrength",

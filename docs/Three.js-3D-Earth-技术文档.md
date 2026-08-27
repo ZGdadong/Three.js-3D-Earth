@@ -268,7 +268,7 @@ uReveal.value = cycleTime < dur
 - **`sweep`**：`cycleTime/dur` 从 0→1，即波从北极（0）走到南极（1）。若 `dur < period`，扫完后 `sweep` 停在 1，剩余时间是**空档**。
 - **`uReveal`**：扫动时为 1，空档时为 0（护罩整层隐藏）；起止各有一段 `fade` 软边，避免突然出现/消失。
 - **方向**：`northToSouth` → `uWave = sweep`（0→1）；`southToNorth` → `uWave = 1-sweep`（1→0）。
-- **总周期** = `period` 秒，其中扫动占 `dur` 秒。默认 `period = dur = 5`，即连续不停、每 5 秒扫一次。
+- **总周期** = `period` 秒，其中扫动占 `dur` 秒。默认（`period = 10`、`dur = 6`）即每 10 秒一次扫描、扫 6 秒、留 4 秒空档；两者都可在右面板实时调整。
 
 ### 7.4 护罩可调参数（速查）
 `护罩透明度`（= `shieldOpacity`，驱动 `uOpacity`，0~2）、`护罩颜色`（`uColor`）、`纹理平铺次数`（`uRepeat`，1~30）、`能量带宽度`（`uBandWidth`）、`扫描方向/周期(秒)/单次时长(秒)`、`边缘亮度`（`uGlow`）、`边缘锐度`（`uFresnel`）。
