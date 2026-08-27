@@ -151,6 +151,116 @@
       background: rgba(120, 180, 255, 0.3);
       border-radius: 4px;
     }
+
+    /* 飞线设置表格面板 */
+    #flightPanel {
+      position: fixed;
+      left: 18px;
+      top: 88px;
+      width: 440px;
+      max-height: calc(100vh - 210px);
+      display: flex;
+      flex-direction: column;
+      background: rgba(6, 16, 30, 0.72);
+      border: 1px solid rgba(120, 180, 255, 0.25);
+      border-radius: 12px;
+      color: #dff1ff;
+      font-size: 13px;
+      z-index: 12;
+      backdrop-filter: blur(8px);
+      overflow: hidden;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    #flightPanel.collapsed .body,
+    #flightPanel.collapsed .foot {
+      display: none;
+    }
+    #flightPanel header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(120, 180, 255, 0.2);
+      font-weight: 600;
+      color: #bfe0ff;
+    }
+    #flightPanel header button {
+      background: none;
+      border: none;
+      color: #8fb8e8;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    #flightPanel .body {
+      overflow-y: auto;
+      padding: 8px 10px;
+    }
+    #flightPanel table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #flightPanel th {
+      text-align: left;
+      color: #7ba6d6;
+      font-weight: 600;
+      padding: 3px 4px;
+      font-size: 12px;
+    }
+    #flightPanel td {
+      padding: 3px 4px;
+    }
+    #flightPanel select {
+      width: 100%;
+      background: rgba(20, 40, 64, 0.9);
+      color: #dff1ff;
+      border: 1px solid rgba(120, 180, 255, 0.25);
+      border-radius: 6px;
+      padding: 5px 6px;
+      font-size: 13px;
+      outline: none;
+    }
+    #flightPanel .btns {
+      white-space: nowrap;
+    }
+    #flightPanel .btns button {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid rgba(120, 180, 255, 0.3);
+      background: rgba(40, 70, 110, 0.6);
+      color: #dff1ff;
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      margin-right: 3px;
+    }
+    #flightPanel .btns button.add:hover {
+      background: #2f6f9f;
+    }
+    #flightPanel .btns button.del:hover {
+      background: #a04040;
+    }
+    #flightPanel .addgroup {
+      width: 100%;
+      margin-top: 8px;
+      padding: 7px 8px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: rgba(63, 120, 180, 0.25);
+      color: #cfe6ff;
+      font-size: 13px;
+    }
+    #flightPanel .addgroup:hover {
+      background: rgba(63, 140, 200, 0.4);
+    }
+    #flightPanel .foot {
+      padding: 8px 12px;
+      border-top: 1px solid rgba(120, 180, 255, 0.2);
+      color: #7ba6d6;
+      font-size: 11px;
+      line-height: 1.6;
+    }
   </style>
 
   <script type="importmap">
@@ -189,6 +299,26 @@
     <div><span class="k">右键拖动</span>：平移</div>
     <div style="margin-top:6px;opacity:.75">
       已移除太阳与月球，仅保留昼夜光照。
+    </div>
+  </div>
+
+  <!-- 飞线设置表格 -->
+  <div id="flightPanel">
+    <header>
+      <span class="title">✈️ 飞线设置</span>
+      <button id="flightPanelToggle" title="收起/展开">收起</button>
+    </header>
+    <div class="body">
+      <table>
+        <thead>
+          <tr><th>起点城市</th><th>终点城市</th><th>操作</th></tr>
+        </thead>
+        <tbody id="flightTbody"></tbody>
+      </table>
+      <button id="flightAddGroup" class="addgroup">＋ 新增分组（1 起点 + n 终点）</button>
+    </div>
+    <div class="foot">
+      同一行：起点=该组开头城市，终点=该组一个终点。点「＋」复制本行起点以增加同一组的终点；「－」删除本行。
     </div>
   </div>
 

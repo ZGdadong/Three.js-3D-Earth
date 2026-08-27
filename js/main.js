@@ -16,6 +16,13 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import GUI from "lil-gui";
+import { FlightLines, CITIES as FLIGHT_CITIES } from "./flightlines.js";
+
+// 默认飞线分组：{ source: 起点城市, targets: [终点城市...] }（城市名须在 CITIES 中）
+const DEFAULT_FLIGHT_GROUPS = [
+  { source: "北京", targets: ["上海", "广州", "深圳", "成都", "杭州"] },
+  { source: "上海", targets: ["东京", "纽约", "伦敦", "新加坡", "悉尼"] },
+];
 
 const degToRad = THREE.MathUtils.degToRad;
 
@@ -97,7 +104,7 @@ const params = {
   starOpacityMax: 1.0,
 
   // 城市标注
-  markersVisible: true,
+  markersVisible: false, // 默认不显示城市名称（飞线场景要求不显示城市名）
 
   // 护罩（能量波从北极扫到南极，路过的区域才显示）
   shieldVisible: true,
@@ -110,6 +117,23 @@ const params = {
   shieldGlow: 1.0, // 边缘亮度
   shieldFresnel: 2.5, // 边缘锐度
   shieldColor: "#3fd0ff", // 护罩颜色
+
+  // 飞线（1 起点 + n 终点，多组）
+  flightVisible: true,
+  flightLineColor: "#4fd0ff", // 飞线颜色
+  flightArcHeight: 0.35, // 弧线高度（相对地球半径的比例）
+  flightCometLength: 60, // 彗星尾巴长度（点数）
+  flightCometWidth: 10, // 彗星粗细（越大越细）
+  flightCometSize: 2, // 彗星整体大小
+  flightSpeed: 1, // 飞行速度倍率
+  flightTrackOpacity: 0.28, // 轨道线透明度
+  // 终点扩散波
+  waveColor: "#40e0ff", // 扩散波颜色
+  waveHeight: 0.6, // 扩散波高度
+  waveRadius: 0.6, // 扩散波半径
+  waveSpeed: 0.9, // 扩散波速度
+  waveBright: 1.0, // 扩散波亮度
+  flightGroupsJson: JSON.stringify(DEFAULT_FLIGHT_GROUPS, null, 2), // 可编辑的分组数据
 };
 
 // 昼夜光照方向（世界空间，每帧由方位角+高度角计算）
@@ -131,6 +155,10 @@ const PARAM_KEYS = [
   "markersVisible",
   "shieldVisible", "shieldOpacity", "shieldDirection", "shieldScanPeriod", "shieldScanDuration",
   "shieldBandWidth", "shieldRepeat", "shieldGlow", "shieldFresnel", "shieldColor",
+  "flightVisible", "flightLineColor", "flightArcHeight", "flightCometLength", "flightCometWidth",
+  "flightCometSize", "flightSpeed", "flightTrackOpacity",
+  "waveColor", "waveHeight", "waveRadius", "waveSpeed", "waveBright",
+  "flightGroupsJson",
 ];
 const DEFAULT_PARAMS = { ...params }; // 默认值快照（此时 params 仅含数据项）
 
@@ -169,12 +197,14 @@ function loadParams() {
     return;
   }
   gui.controllersRecursive().forEach((c) => c.updateDisplay());
+  applyFlightGroups(); // 恢复飞线分组
   showToast("📥 已载入上次保存的参数");
 }
 
 function resetParams() {
   for (const k of PARAM_KEYS) params[k] = DEFAULT_PARAMS[k];
   gui.controllersRecursive().forEach((c) => c.updateDisplay());
+  applyFlightGroups();
   showToast("↺ 已恢复默认参数");
 }
 
@@ -203,6 +233,7 @@ function applyImported(data) {
     }
   }
   gui.controllersRecursive().forEach((c) => c.updateDisplay());
+  applyFlightGroups(); // 导入后重建飞线分组
   return count;
 }
 
@@ -698,6 +729,140 @@ markersGroup.visible = params.markersVisible;
 earth.add(markersGroup);
 
 // ---------------------------------------------------------------------------
+// 动态飞线（多组：1 起点 + n 终点 + 终点扩散波）—— 表格形式编辑
+// ---------------------------------------------------------------------------
+const flightLines = new FlightLines(earth, { radius: EARTH_RADIUS });
+const flightCityNames = FLIGHT_CITIES.map((c) => c.name);
+let flightRows = []; // 表格数据：[{ source, target }]
+
+// 兼容两种数据：[{source,targets:[...]}] 或 [{source,target}]
+function rowsFromJson(json) {
+  const arr = JSON.parse(json);
+  const rows = [];
+  arr.forEach((r) => {
+    if (Array.isArray(r.targets)) r.targets.forEach((t) => rows.push({ source: r.source, target: t }));
+    else rows.push({ source: r.source, target: r.target });
+  });
+  return rows;
+}
+
+// 按起点分组 -> [{source, targets:[...]}]
+function rowGroups() {
+  const m = new Map();
+  flightRows.forEach((r) => {
+    if (!r.source || !r.target) return;
+    if (!m.has(r.source)) m.set(r.source, []);
+    m.get(r.source).push(r.target);
+  });
+  return [...m.entries()].map(([source, targets]) => ({ source, targets }));
+}
+
+function rebuildFlight() {
+  params.flightGroupsJson = JSON.stringify(flightRows, null, 2); // 供持久化
+  flightLines.rebuild(rowGroups(), params.flightArcHeight);
+}
+
+function applyFlightGroups() {
+  try {
+    flightRows.splice(0, flightRows.length, ...rowsFromJson(params.flightGroupsJson));
+  } catch (e) {
+    flightRows.splice(0, flightRows.length, { source: "北京", target: "上海" });
+  }
+  rebuildFlight();
+  renderFlightTable();
+}
+
+/* ---- 表格编辑器 ---- */
+function makeCitySelect(value) {
+  const sel = document.createElement("select");
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "—选择—";
+  sel.appendChild(empty);
+  flightCityNames.forEach((n) => {
+    const o = document.createElement("option");
+    o.value = n;
+    o.textContent = n;
+    sel.appendChild(o);
+  });
+  sel.value = value;
+  return sel;
+}
+
+function renderFlightTable() {
+  const tbody = document.getElementById("flightTbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  flightRows.forEach((row, idx) => {
+    const tr = document.createElement("tr");
+
+    // 列1：起点城市
+    const tdS = document.createElement("td");
+    const selS = makeCitySelect(row.source);
+    selS.addEventListener("change", () => {
+      flightRows[idx].source = selS.value;
+      rebuildFlight();
+    });
+    tdS.appendChild(selS);
+
+    // 列2：终点城市
+    const tdT = document.createElement("td");
+    const selT = makeCitySelect(row.target);
+    selT.addEventListener("change", () => {
+      flightRows[idx].target = selT.value;
+      rebuildFlight();
+    });
+    tdT.appendChild(selT);
+
+    // 列3：增加 / 删除
+    const tdB = document.createElement("td");
+    tdB.className = "btns";
+    const addBtn = document.createElement("button");
+    addBtn.className = "add";
+    addBtn.textContent = "＋";
+    addBtn.title = "在本组后面增加一个终点（沿用本行起点）";
+    addBtn.addEventListener("click", () => {
+      flightRows.splice(idx + 1, 0, { source: row.source, target: "" });
+      renderFlightTable();
+      rebuildFlight();
+    });
+    const delBtn = document.createElement("button");
+    delBtn.className = "del";
+    delBtn.textContent = "－";
+    delBtn.title = "删除本行";
+    delBtn.addEventListener("click", () => {
+      flightRows.splice(idx, 1);
+      renderFlightTable();
+      rebuildFlight();
+    });
+    tdB.append(addBtn, delBtn);
+
+    tr.append(tdS, tdT, tdB);
+    tbody.appendChild(tr);
+  });
+}
+
+function initFlightEditor() {
+  const panel = document.getElementById("flightPanel");
+  const toggle = document.getElementById("flightPanelToggle");
+  if (toggle && panel) {
+    toggle.addEventListener("click", () => {
+      panel.classList.toggle("collapsed");
+      toggle.textContent = panel.classList.contains("collapsed") ? "展开" : "收起";
+    });
+  }
+  const addGroup = document.getElementById("flightAddGroup");
+  if (addGroup) {
+    addGroup.addEventListener("click", () => {
+      flightRows.push({ source: "", target: "" });
+      renderFlightTable();
+    });
+  }
+}
+initFlightEditor();
+applyFlightGroups();
+
+// ---------------------------------------------------------------------------
 // 场景灯光（用于云层；地球用自定义着色器，不受影响）
 // ---------------------------------------------------------------------------
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -781,6 +946,24 @@ fShield.add(params, "shieldGlow", 0, 3, 0.05).name("边缘亮度");
 fShield.add(params, "shieldFresnel", 1, 6, 0.1).name("边缘锐度");
 fShield.addColor(params, "shieldColor").name("护罩颜色");
 
+// 飞线
+const fFly = gui.addFolder("✈️ 飞线");
+fFly.add(params, "flightVisible").name("显示飞线");
+fFly.addColor(params, "flightLineColor").name("飞线颜色");
+fFly.add(params, "flightArcHeight", 0.05, 0.9, 0.01)
+  .name("弧线高度")
+  .onChange(() => applyFlightGroups());
+fFly.add(params, "flightCometLength", 5, 200, 1).name("彗星长度");
+fFly.add(params, "flightCometWidth", 2, 40, 1).name("彗星粗细");
+fFly.add(params, "flightCometSize", 0.5, 8, 0.5).name("彗星大小");
+fFly.add(params, "flightSpeed", 0.1, 5, 0.1).name("飞行速度");
+fFly.add(params, "flightTrackOpacity", 0, 1, 0.05).name("轨道线透明度");
+fFly.addColor(params, "waveColor").name("扩散波颜色");
+fFly.add(params, "waveHeight", 0.1, 2.5, 0.05).name("扩散波高度");
+fFly.add(params, "waveRadius", 0.1, 2, 0.05).name("扩散波半径");
+fFly.add(params, "waveSpeed", 0.2, 3, 0.1).name("扩散波速度");
+fFly.add(params, "waveBright", 0.1, 3, 0.1).name("扩散波亮度");
+
 // 折叠部分分组，让面板更紧凑，保存按钮一眼可见（点击可展开）
 fEarth.close();
 fCloud.close();
@@ -788,6 +971,7 @@ fAtm.close();
 fStar.close();
 fMark.close();
 fShield.close();
+fFly.close();
 
 // 启动时静默恢复上次保存的参数（若存在），并刷新面板显示
 try {
@@ -796,6 +980,7 @@ try {
     const data = JSON.parse(raw);
     for (const k of PARAM_KEYS) if (k in data) params[k] = data[k];
     gui.controllersRecursive().forEach((c) => c.updateDisplay());
+    applyFlightGroups(); // 按恢复的分组重建飞线
   }
 } catch (e) {
   /* 忽略损坏的数据 */
@@ -940,6 +1125,22 @@ function animate() {
   su.uFresnel.value = params.shieldFresnel;
   su.uColor.value.set(params.shieldColor);
 
+  // --- 飞线：推进彗星 + 终点扩散波 ---
+  flightLines.update(delta, elapsed, {
+    visible: params.flightVisible,
+    lineColor: params.flightLineColor,
+    flightSpeed: params.flightSpeed,
+    cometLength: params.flightCometLength,
+    cometWidth: params.flightCometWidth,
+    cometSize: params.flightCometSize,
+    trackOpacity: params.flightTrackOpacity,
+    waveColor: params.waveColor,
+    waveHeight: params.waveHeight,
+    waveRadius: params.waveRadius,
+    waveSpeed: params.waveSpeed,
+    waveBright: params.waveBright,
+  });
+
   controls.update();
   renderer.render(scene, camera);
 }
@@ -948,6 +1149,10 @@ animate();
 // 便于在浏览器控制台调试 / 供自动化测试驱动：暴露参数对象
 window.__params = params;
 window.__shieldUniforms = shieldMaterial.uniforms;
+window.__flight = flightLines;
+window.__earth = earth;
+window.__camera = camera;
+window.__controls = controls;
 
 // ---------------------------------------------------------------------------
 // 窗口自适应

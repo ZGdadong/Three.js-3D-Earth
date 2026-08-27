@@ -372,7 +372,57 @@ function animate() {
 
 ---
 
-## 12. 常见坑
+## 12. 动态飞线（多组起点/终点 + 终点扩散波）
+
+`js/flightlines.js` 里是一个独立的 `FlightLines` 类，实现**多组【1 个起点 + n 个终点】**的飞线，以及终点城市的**圆形扩散波**。
+
+### 12.1 城市库与坐标
+`CITIES` 是 `{name, lat, lon}` 数组（世界主流 + 中国一/二线）。用之前讲过的 `latLonToVec3` 把经纬度转成球面坐标。
+
+### 12.2 弧线（飞行轨道）
+```
+贴合球面的大圆 + 径向抬高
+for t in [0,1]:
+  dir = lerp(srcUnit, dstUnit, t).normalize()   // 球面插值（近似大圆）
+  lift = R * height * sin(π t)                  // 两端为 0，中间最高
+  pt   = dir * (R + lift)
+```
+这条曲线**始终在地球外侧**（即使两点近似对跖也不会穿过地球）。采样 180 个点：
+
+- **轨道线**：`new THREE.CatmullRomCurve3(pts)` → `TubeGeometry`，做半透明的"底线"。
+- **飞线**：把 pts 作为 `Points`，附加 `aIndex`(0..180) 属性，用着色器只显示"移动中的一段"，形成流动的彗星。
+
+### 12.3 飞线（彗星）着色器
+```glsl
+// 顶点
+if (aIndex >= uTime - uLength && aIndex < uTime) {
+  vSize = (aIndex + uLength - uTime) / uWidth; // 头部最大，尾部渐变
+}
+gl_PointSize = max(vSize,0.0) * uSize * (6.0 / -viewPosition.z); // 距离衰减
+
+// 片元：圆形软点
+float d = length(gl_PointCoord - 0.5);
+alpha = smoothstep(0.5, 0.0, d);
+gl_FragColor = vec4(uColor, alpha);
+```
+`uTime` 每帧递增（约 4 秒走完 0..180），到 180 表示到达终点 → 触发该终点的扩散波 → 归零重来。
+
+### 12.4 终点扩散波（Wall Shader）
+参考"Wall Shader"：用 `TubeGeometry` 沿一条**城市法线方向**的直线（高度 `waveHeight`），片元按**局部 Y 高度**做透明度渐变（底部亮、顶部透明），然后让它的 **X/Z 半径随时间扩展**、透明度随扩展降低：
+```js
+mesh.scale.set(rScale, hScale, rScale); // 半径扩大、高度 = waveHeight
+mat.uniforms.uFade.value = 1 - phase;   // 越扩越淡
+```
+每组飞线到终点时把该终点扩散波 `phase` 归零，重新扩散 → 形成"到达即扩散"的圆形波。朝向：用 `setFromUnitVectors((0,1,0), normal)` 让局部 +Y 对准城市法线。
+
+### 12.5 配置
+- **分组设置**：页面左侧「✈️ 飞线设置」表格，每行 = 起点城市(下拉) + 终点城市(下拉) + 增加/删除；「＋」复制本行起点以给同一组加终点，「－」删除本行，「＋新增分组」加一行。所有行按**起点相同**归成一组（`{source, targets:[...]}`），修改即 `rebuild()->flightLines.rebuild(groups, arcHeight)`。
+  > 内部数据 `flightRows=[{source,target}]`，分组由 `rowGroups()` 按 source 聚合。
+- **样式**：颜色、弧线高度、彗星长度/粗细/大小、飞行速度、轨道透明度、扩散波颜色/高度/半径/速度/亮度，通过 `flightLines.update(delta, elapsed, style)` 每帧传入。
+
+---
+
+## 13. 常见坑
 
 - **贴图颜色发灰/发黑**：忘记设 `texture.colorSpace = SRGBColorSpace`（颜色贴图）。法线贴图用默认线性。
 - **file:// 打不开**：浏览器安全策略禁本地贴图，**必须用本地服务器**。
