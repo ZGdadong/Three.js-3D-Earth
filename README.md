@@ -4,6 +4,8 @@
 
 > 🕹️ **在线预览 / Live Demo**：<https://ZGdadong.github.io/Three.js-3D-Earth/> （GitHub Pages，需在仓库 Settings → Pages 开启后生效）
 
+> ⭐ 这个项目对你有帮助的话，使用前记得先点个 **Star** 支持一下～
+
 一个用 **Three.js** 实现的**真实风格 3D 地球**，带有动态**昼夜切换**、**平滑晨昏线**、**云层**、**大气辉光**、**星空闪烁**、**法线贴图地形细节**、**城市光点标注**，以及一个**从北极到南极单向扫描的能量波护罩**。
 
 <img width="1275" height="702" alt="Demo" src="https://github.com/user-attachments/assets/0d2080a9-b1b8-4f26-b8ac-dd49d6275396" />
@@ -195,4 +197,4 @@ Languages/
 
 ## 📃 许可
 
-仅供学习使用。
+[MIT](LICENSE)（详见仓库根目录的 `LICENSE` 文件），欢迎自由使用、修改与分享。

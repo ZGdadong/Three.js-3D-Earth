@@ -4,6 +4,8 @@
 
 > 🕹️ **Live Demo / 在线预览**：<https://ZGdadong.github.io/Three.js-3D-Earth/> （GitHub Pages, enabled in repo Settings → Pages）
 
+> ⭐ If this project helps you, please consider leaving a **Star** before using it — thanks!
+
 A **realistic 3D Earth** built with **Three.js**, featuring dynamic **day/night switching**, a **smooth terminator line**, **clouds**, **atmospheric glow**, **twinkling stars**, **normal-map terrain detail**, **city light markers**, and an **energy-wave shield that scans one-way from the North Pole to the South Pole**.
 
 <img width="1275" height="702" alt="Demo" src="https://github.com/user-attachments/assets/0d2080a9-b1b8-4f26-b8ac-dd49d6275396" />
@@ -195,4 +197,4 @@ For the full derivation and line-by-line GLSL walkthrough, see **[docs/Three.js-
 
 ## 📃 License
 
-For learning use only.
+[MIT](LICENSE) (see the `LICENSE` file in the repo root). Feel free to use, modify, and share.
