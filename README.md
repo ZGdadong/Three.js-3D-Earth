@@ -1,5 +1,7 @@
 # 🌍 Three.js 3D 地球（Three.js-3D-Earth）
 
+**🌐 语言 / Language：** [中文](README.md) | [English](README.en.md)
+
 一个用 **Three.js** 实现的**真实风格 3D 地球**，带有动态**昼夜切换**、**平滑晨昏线**、**云层**、**大气辉光**、**星空闪烁**、**法线贴图地形细节**、**城市光点标注**，以及一个**从北极到南极单向扫描的能量波护罩**。
 
 <img width="1275" height="702" alt="Demo" src="https://github.com/user-attachments/assets/0d2080a9-b1b8-4f26-b8ac-dd49d6275396" />
