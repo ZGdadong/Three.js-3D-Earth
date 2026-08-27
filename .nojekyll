@@ -1,0 +1,3 @@
+# Ensure GitHub Pages serves the static files as-is (no Jekyll processing),
+# which is required for the ES modules, .json language packs, and the
+# Languages/ language-list discovery to load correctly at a subpath.

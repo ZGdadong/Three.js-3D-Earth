@@ -84,46 +84,59 @@ async function discoverLanguages() {
     { code: "en-US", name: KNOWN_NAMES["en-US"] },
   ];
 
+  const pool = new Map(builtin.map((l) => [l.code, l]));
   let codes = [];
+
+  // 1) 优先尝试目录列表（本地服务器如 python -m http.server / npx serve 会返回 HTML 列表）
   try {
     const res = await fetch("./Languages/", { cache: "no-store" });
     if (res.ok) {
       const html = await res.text();
       // 目录列表里形如 <a href="en-US.json"> 的链接
-      const matches = [...new Set([...html.matchAll(/([A-Za-z]{2}-[A-Za-z]{2})\.json/g)].map((m) => m[1]))];
-      codes = matches;
+      codes = [...new Set([...html.matchAll(/([A-Za-z]{2}-[A-Za-z]{2})\.json/g)].map((m) => m[1]))];
     }
   } catch (e) {
     /* 目录不可枚举，忽略 */
   }
 
-  const pool = new Map(builtin.map((l) => [l.code, l]));
-  // 为目录中发现但不在内置表里的语言补读 name（能读到才被采用）
-  for (const c of codes) {
-    if (!pool.has(c)) {
-      try {
-        const d = await fetchLang(c);
-        pool.set(c, { code: c, name: d.name || c });
-      } catch (e) {
-        pool.set(c, { code: c, name: c });
+  // 2) GitHub Pages 不提供目录列表，回退读取 languages.json 清单
+  if (!codes.length) {
+    try {
+      const res = await fetch("./Languages/languages.json", { cache: "no-store" });
+      if (res.ok) {
+        const manifest = await res.json();
+        const list = Array.isArray(manifest) ? manifest : manifest.languages || [];
+        codes = list.filter((l) => l && l.code).map((l) => l.code);
       }
+    } catch (e) {
+      /* 无清单，忽略 */
     }
   }
 
+  // 3) 为发现但不在内置表中的语言补读 name
+  for (const c of codes) {
+    if (pool.has(c)) continue;
+    try {
+      const d = await fetchLang(c);
+      pool.set(c, { code: c, name: d.name || c });
+    } catch (e) {
+      pool.set(c, { code: c, name: c });
+    }
+  }
+
+  // 输出顺序：内置语言在前，其后是额外发现的语言
   const ordered = [];
   const seen = new Set();
-  for (const l of builtin) {
-    if (!seen.has(l.code)) {
-      seen.add(l.code);
-      ordered.push(l);
+  const pushCodes = (arr) => {
+    for (const c of arr) {
+      if (!seen.has(c) && pool.has(c)) {
+        seen.add(c);
+        ordered.push(pool.get(c));
+      }
     }
-  }
-  for (const c of codes) {
-    if (!seen.has(c)) {
-      seen.add(c);
-      ordered.push(pool.get(c));
-    }
-  }
+  };
+  pushCodes(builtin.map((l) => l.code));
+  pushCodes(codes);
 
   availableLanguages = ordered;
   return ordered;
