@@ -942,7 +942,7 @@ fShield.add(params, "shieldDirection", {
 fShield.add(params, "shieldScanPeriod", 1, 20, 0.5).name("扫描周期(秒)");
 fShield.add(params, "shieldScanDuration", 0.5, 20, 0.5).name("单次扫描时长(秒)");
 fShield.add(params, "shieldBandWidth", 0.03, 0.5, 0.01).name("能量带宽度");
-fShield.add(params, "shieldRepeat", 1, 10, 1).name("纹理平铺次数");
+fShield.add(params, "shieldRepeat", 1, 30, 1).name("纹理平铺次数");
 fShield.add(params, "shieldGlow", 0, 3, 0.05).name("边缘亮度");
 fShield.add(params, "shieldFresnel", 1, 6, 0.1).name("边缘锐度");
 fShield.addColor(params, "shieldColor").name("护罩颜色");
