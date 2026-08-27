@@ -274,7 +274,7 @@ export class FlightLines {
     const flyMat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true, // 参与深度测试：被地球遮挡，背面时隐藏
       blending: THREE.AdditiveBlending,
       uniforms: {
         uTime: { value: Math.random() * divisions },
