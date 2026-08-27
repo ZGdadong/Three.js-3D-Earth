@@ -21,8 +21,10 @@
 
 ```
 StudyThree.js/
-├─ index.html      # 入口：importmap 引入 three.js + lil-gui，加载层、HUD
-├─ js/main.js      # 全部逻辑（约 900 行）
+├─ index.html      # 入口：importmap 引入 three.js + lil-gui，加载层、HUD、语言条
+├─ js/main.js      # 全部逻辑（约 1200 行）
+├─ js/i18n.js      # 多语言加载器（Languages/*.json、切换、持久化、t() 翻译）
+├─ Languages/      # 多语言语言包（每语言一个 JSON，含 BCP 47 说明）
 └─ images/         # 8K 贴图
 ```
 
@@ -429,6 +431,20 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
   轨道线 `flightTrackWidth / flightTrackColor / flightTrackOpacity`；
   扩散波 `waveColor / waveOpacity / waveHeight / waveRadius / waveSpeed / waveBright`；弧线 `flightArcHeight`（改高度需重建）。
 - **轨道线宽度/颜色** 等几何参数在创建时定死，改宽度要重建飞线（滑杆用 `.onFinishChange` 松手才重建）。
+
+---
+
+## 附：多语言（i18n）说明
+
+界面（`index.html` 静态文本、lil-gui 面板、城市标注、飞线表格）全量多语言。语言包在根目录 `Languages/`，每语言一个 JSON：
+
+```json
+{ "code": "zh-CN", "name": "中文", "texts": { "gui.title": "🌍 地球参数", ... } }
+```
+
+- 右上角下拉框即时切换；`js/i18n.js` 负责加载、切换、`localStorage` 持久化、`t(key, vars)` 翻译与 `{var}` 插值。
+- 缺失的 key 自动回退到 `zh-CN`；新增语言只需复制 `zh-CN.json` 改名、改 `code`/`name`/`texts` 放进 `Languages/`，点「⟳ 刷新语言列表」即可。
+- 切换语言会销毁并重建 lil-gui 面板（标题/分组/控件名都用 `t()`），城市名与飞线表格下拉用 `city.<name>` 本地化显示；数据键仍是中文名，保证持久化兼容。
 
 ---
 

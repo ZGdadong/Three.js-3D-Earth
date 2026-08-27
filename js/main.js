@@ -17,6 +17,16 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import GUI from "lil-gui";
 import { FlightLines, CITIES as FLIGHT_CITIES } from "./flightlines.js";
+import {
+  t,
+  initI18n,
+  switchTo,
+  refreshLanguages,
+  onLanguageChange,
+  getLanguages,
+  getCurrentCode,
+  applyStaticText,
+} from "./i18n.js";
 
 // 默认飞线分组：{ source: 起点城市, targets: [终点城市...] }（城市名须在 CITIES 中）
 const DEFAULT_FLIGHT_GROUPS = [
@@ -184,32 +194,32 @@ function collectParams() {
 
 function saveParams() {
   localStorage.setItem(PARAMS_KEY, JSON.stringify(collectParams()));
-  showToast("✅ 参数已保存（刷新后自动恢复）");
+  showToast(t("toast.saved"));
 }
 
 function loadParams() {
   const raw = localStorage.getItem(PARAMS_KEY);
   if (!raw) {
-    showToast("⚠️ 还没有保存过的参数");
+    showToast(t("toast.noParams"));
     return;
   }
   try {
     const data = JSON.parse(raw);
     for (const k of PARAM_KEYS) if (k in data) params[k] = data[k];
   } catch (e) {
-    showToast("❌ 载入失败，数据已损坏");
+    showToast(t("toast.loadFailed"));
     return;
   }
   gui.controllersRecursive().forEach((c) => c.updateDisplay());
   applyFlightGroups(); // 恢复飞线分组
-  showToast("📥 已载入上次保存的参数");
+  showToast(t("toast.loaded"));
 }
 
 function resetParams() {
   for (const k of PARAM_KEYS) params[k] = DEFAULT_PARAMS[k];
   gui.controllersRecursive().forEach((c) => c.updateDisplay());
   applyFlightGroups();
-  showToast("↺ 已恢复默认参数");
+  showToast(t("toast.resetDone"));
 }
 
 function exportParams() {
@@ -224,7 +234,7 @@ function exportParams() {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  showToast("⬇️ 已导出 JSON 文件");
+  showToast(t("toast.exported"));
 }
 
 // 把导入的数据应用到参数里，并刷新面板；返回成功项数
@@ -259,9 +269,9 @@ function importParams() {
       try {
         const data = JSON.parse(reader.result);
         const count = applyImported(data);
-        showToast(`📥 已导入 ${count} 项参数`);
+        showToast(t("toast.imported", { count }));
       } catch (e) {
-        showToast("❌ 导入失败：不是有效的参数 JSON");
+        showToast(t("toast.importFailed"));
       } finally {
         input.remove();
       }
@@ -689,8 +699,11 @@ function makeLabelSprite(text, color) {
   ctx.lineWidth = 3;
   ctx.strokeStyle = "rgba(255,255,255,0.9)";
   ctx.stroke();
-  // 城市名
-  ctx.font = "bold 30px 'Microsoft YaHei', sans-serif";
+  // 城市名（根据是否含中文选择字体）
+  const hasCjk = /[\u3000-\u9fff\uff00-\uffef]/.test(text);
+  ctx.font = hasCjk
+    ? "bold 30px 'Microsoft YaHei', sans-serif"
+    : "bold 30px 'Segoe UI', sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineWidth = 6;
@@ -724,13 +737,22 @@ const CITIES = [
 ];
 
 const markersGroup = new THREE.Group();
-CITIES.forEach((c) => {
-  const sprite = makeLabelSprite(c.name, c.color);
-  sprite.position.copy(latLonToVec3(c.lat, c.lon, EARTH_RADIUS * 1.005));
-  markersGroup.add(sprite);
-});
-markersGroup.visible = params.markersVisible;
 earth.add(markersGroup);
+
+// 重建城市标注精灵（文本随语言变化；清单内 name 为稳定键，显示名用 t("city.<name>")）
+function buildCityMarkers() {
+  while (markersGroup.children.length) {
+    const child = markersGroup.children[0];
+    if (child.material && child.material.map) child.material.map.dispose();
+    if (child.material) child.material.dispose();
+    markersGroup.remove(child);
+  }
+  CITIES.forEach((c) => {
+    const sprite = makeLabelSprite(t("city." + c.name), c.color);
+    sprite.position.copy(latLonToVec3(c.lat, c.lon, EARTH_RADIUS * 1.005));
+    markersGroup.add(sprite);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // 动态飞线（多组：1 起点 + n 终点 + 终点扩散波）—— 表格形式编辑
@@ -781,12 +803,12 @@ function makeCitySelect(value) {
   const sel = document.createElement("select");
   const empty = document.createElement("option");
   empty.value = "";
-  empty.textContent = "—选择—";
+  empty.textContent = t("flight.selectPlaceholder");
   sel.appendChild(empty);
   flightCityNames.forEach((n) => {
     const o = document.createElement("option");
-    o.value = n;
-    o.textContent = n;
+    o.value = n; // 稳定键（城市中文名），用于数据
+    o.textContent = t("city." + n); // 显示名（随语言）
     sel.appendChild(o);
   });
   sel.value = value;
@@ -824,7 +846,7 @@ function renderFlightTable() {
     const addBtn = document.createElement("button");
     addBtn.className = "add";
     addBtn.textContent = "＋";
-    addBtn.title = "在本组后面增加一个终点（沿用本行起点）";
+    addBtn.title = t("flight.addEndTitle");
     addBtn.addEventListener("click", () => {
       flightRows.splice(idx + 1, 0, { source: row.source, target: "" });
       renderFlightTable();
@@ -833,7 +855,7 @@ function renderFlightTable() {
     const delBtn = document.createElement("button");
     delBtn.className = "del";
     delBtn.textContent = "－";
-    delBtn.title = "删除本行";
+    delBtn.title = t("flight.delTitle");
     delBtn.addEventListener("click", () => {
       flightRows.splice(idx, 1);
       renderFlightTable();
@@ -852,7 +874,9 @@ function initFlightEditor() {
   if (toggle && panel) {
     toggle.addEventListener("click", () => {
       panel.classList.toggle("collapsed");
-      toggle.textContent = panel.classList.contains("collapsed") ? "展开" : "收起";
+      toggle.textContent = panel.classList.contains("collapsed")
+        ? t("flight.expand")
+        : t("flight.collapse");
     });
   }
   const addGroup = document.getElementById("flightAddGroup");
@@ -864,7 +888,6 @@ function initFlightEditor() {
   }
 }
 initFlightEditor();
-applyFlightGroups();
 
 // ---------------------------------------------------------------------------
 // 场景灯光（用于云层；地球用自定义着色器，不受影响）
@@ -877,124 +900,204 @@ const ambientLight = new THREE.AmbientLight(0x223344, 0.8);
 scene.add(ambientLight);
 
 // ---------------------------------------------------------------------------
-// lil-gui 参数面板
+// lil-gui 参数面板（多语言：切换语言时销毁重建，标题/分组/控件名用 t()）
 // ---------------------------------------------------------------------------
-const gui = new GUI({ title: "🌍 地球参数" });
+let gui = null;
 
-// 昼夜 / 时段
-const fDay = gui.addFolder("昼夜 · 时段");
-fDay.add(params, "timePreset", ["auto", "noon", "dusk", "dawn", "night"])
-  .name("时段预设")
-  .onChange((v) => applyTimePreset(v));
-fDay.add(params, "sunElevationDeg", -10, 90, 1).name("太阳高度角");
-fDay.add(params, "sunAutoRotate").name("自动昼夜循环");
-fDay.add(params, "sunOrbitSpeedDeg", 0, 20, 0.5).name("昼夜循环速度");
-fDay.add(params, "transitionWidth", 0.02, 0.6, 0.01).name("晨昏线宽度");
-fDay.add(params, "duskStrength", 0, 1, 0.05).name("黄昏暖色强度");
-fDay.add(params, "duskWidth", 0.05, 1, 0.05).name("黄昏暖色范围");
-fDay.add(params, "dayBoost", 0.2, 2, 0.05).name("白昼亮度");
-fDay.add(params, "nightBoost", 0.2, 3, 0.05).name("夜晚灯光亮度");
-fDay.add(params, "normalStrength", 0, 2, 0.05).name("法线贴图强度");
+function buildGui() {
+  if (gui) gui.destroy();
+  gui = new GUI({ title: t("gui.title") });
 
-// 地球自转
-const fEarth = gui.addFolder("地球自转");
-fEarth.add(params, "earthSpin").name("自转开关");
-fEarth.add(params, "earthSpinSpeed", 0, 0.2, 0.001).name("自转速度");
+  // 昼夜 / 时段
+  const fDay = gui.addFolder(t("folder.day"));
+  fDay
+    .add(params, "timePreset", {
+      [t("preset.auto")]: "auto",
+      [t("preset.noon")]: "noon",
+      [t("preset.dusk")]: "dusk",
+      [t("preset.dawn")]: "dawn",
+      [t("preset.night")]: "night",
+    })
+    .name(t("param.timePreset"))
+    .onChange((v) => applyTimePreset(v));
+  fDay.add(params, "sunElevationDeg", -10, 90, 1).name(t("param.sunElevation"));
+  fDay.add(params, "sunAutoRotate").name(t("param.sunAutoRotate"));
+  fDay.add(params, "sunOrbitSpeedDeg", 0, 20, 0.5).name(t("param.sunOrbitSpeed"));
+  fDay.add(params, "transitionWidth", 0.02, 0.6, 0.01).name(t("param.transitionWidth"));
+  fDay.add(params, "duskStrength", 0, 1, 0.05).name(t("param.duskStrength"));
+  fDay.add(params, "duskWidth", 0.05, 1, 0.05).name(t("param.duskWidth"));
+  fDay.add(params, "dayBoost", 0.2, 2, 0.05).name(t("param.dayBoost"));
+  fDay.add(params, "nightBoost", 0.2, 3, 0.05).name(t("param.nightBoost"));
+  fDay.add(params, "normalStrength", 0, 2, 0.05).name(t("param.normalStrength"));
 
-// 云层
-const fCloud = gui.addFolder("云层");
-fCloud.add(params, "cloudsVisible").name("显示云层");
-fCloud.add(params, "cloudOpacity", 0, 1, 0.05).name("云层不透明度");
+  // 地球自转
+  const fEarth = gui.addFolder(t("folder.earth"));
+  fEarth.add(params, "earthSpin").name(t("param.earthSpin"));
+  fEarth.add(params, "earthSpinSpeed", 0, 0.2, 0.001).name(t("param.earthSpinSpeed"));
 
-// 大气
-const fAtm = gui.addFolder("大气辉光");
-fAtm.add(params, "atmosphereVisible").name("显示大气");
-fAtm.add(params, "atmosphereBrightness", 0, 1, 0.01).name("大气亮度");
+  // 云层
+  const fCloud = gui.addFolder(t("folder.cloud"));
+  fCloud.add(params, "cloudsVisible").name(t("param.cloudsVisible"));
+  fCloud.add(params, "cloudOpacity", 0, 1, 0.05).name(t("param.cloudOpacity"));
 
-// 星空
-const fStar = gui.addFolder("星空");
-fStar.add(params, "starsVisible").name("显示星空");
-fStar.add(params, "starRotate").name("星空旋转");
-fStar.add(params, "starRotationSpeed", 0, 0.2, 0.005).name("旋转速度");
-fStar.add(params, "starSwayAmplitude", 0, 0.5, 0.01).name("摇摆幅度");
-fStar.add(params, "starSwaySpeed", 0, 1, 0.01).name("摇摆频率");
-fStar.add(params, "starTwinkle").name("闪烁");
-fStar.add(params, "starOpacityMin", 0, 1, 0.05).name("闪烁最暗");
-fStar.add(params, "starOpacityMax", 0, 1, 0.05).name("闪烁最亮");
+  // 大气
+  const fAtm = gui.addFolder(t("folder.atm"));
+  fAtm.add(params, "atmosphereVisible").name(t("param.atmosphereVisible"));
+  fAtm.add(params, "atmosphereBrightness", 0, 1, 0.01).name(t("param.atmosphereBrightness"));
 
-// 城市标注
-const fMark = gui.addFolder("城市标注");
-fMark.add(params, "markersVisible").name("显示城市点");
+  // 星空
+  const fStar = gui.addFolder(t("folder.star"));
+  fStar.add(params, "starsVisible").name(t("param.starsVisible"));
+  fStar.add(params, "starRotate").name(t("param.starRotate"));
+  fStar.add(params, "starRotationSpeed", 0, 0.2, 0.005).name(t("param.starRotationSpeed"));
+  fStar.add(params, "starSwayAmplitude", 0, 0.5, 0.01).name(t("param.starSwayAmplitude"));
+  fStar.add(params, "starSwaySpeed", 0, 1, 0.01).name(t("param.starSwaySpeed"));
+  fStar.add(params, "starTwinkle").name(t("param.starTwinkle"));
+  fStar.add(params, "starOpacityMin", 0, 1, 0.05).name(t("param.starOpacityMin"));
+  fStar.add(params, "starOpacityMax", 0, 1, 0.05).name(t("param.starOpacityMax"));
 
-// 参数保存 / 载入
-const fSave = gui.addFolder("💾 参数");
-fSave.add(params, "save").name("保存参数（浏览器记忆）");
-fSave.add(params, "load").name("载入上次保存");
-fSave.add(params, "import").name("导入 JSON 文件");
-fSave.add(params, "reset").name("恢复默认");
-fSave.add(params, "export").name("导出为 JSON 文件");
+  // 城市标注
+  const fMark = gui.addFolder(t("folder.mark"));
+  fMark.add(params, "markersVisible").name(t("param.markersVisible"));
 
-// 护罩
-const fShield = gui.addFolder("护罩 · 能量波");
-fShield.add(params, "shieldVisible").name("显示护罩");
-fShield.add(params, "shieldOpacity", 0, 2, 0.05).name("护罩透明度");
-fShield.add(params, "shieldDirection", {
-  "北极→南极": "northToSouth",
-  "南极→北极": "southToNorth",
-}).name("扫描方向");
-fShield.add(params, "shieldScanPeriod", 1, 20, 0.5).name("扫描周期(秒)");
-fShield.add(params, "shieldScanDuration", 0.5, 20, 0.5).name("单次扫描时长(秒)");
-fShield.add(params, "shieldBandWidth", 0.03, 0.5, 0.01).name("能量带宽度");
-fShield.add(params, "shieldRepeat", 1, 30, 1).name("纹理平铺次数");
-fShield.add(params, "shieldGlow", 0, 3, 0.05).name("边缘亮度");
-fShield.add(params, "shieldFresnel", 1, 6, 0.1).name("边缘锐度");
-fShield.addColor(params, "shieldColor").name("护罩颜色");
+  // 参数保存 / 载入
+  const fSave = gui.addFolder(t("folder.save"));
+  fSave.add(params, "save").name(t("param.save"));
+  fSave.add(params, "load").name(t("param.load"));
+  fSave.add(params, "import").name(t("param.import"));
+  fSave.add(params, "reset").name(t("param.reset"));
+  fSave.add(params, "export").name(t("param.export"));
 
-// 飞线
-const fFly = gui.addFolder("✈️ 飞线");
-fFly.add(params, "flightVisible").name("显示飞线");
-fFly.addColor(params, "flightLineColor").name("飞线颜色");
-fFly.add(params, "flightLineOpacity", 0, 1, 0.01).name("飞线透明度");
-fFly.add(params, "flightArcHeight", 0.05, 0.9, 0.01)
-  .name("弧线高度")
-  .onChange(() => applyFlightGroups());
-fFly.add(params, "flightCometLength", 5, 200, 1).name("彗星长度");
-fFly.add(params, "flightCometWidth", 2, 40, 1).name("彗星粗细");
-fFly.add(params, "flightCometSize", 0.5, 8, 0.5).name("彗星大小");
-fFly.add(params, "flightSpeed", 0.1, 5, 0.1).name("飞行速度");
-fFly.add(params, "flightTrackWidth", 0.002, 0.2, 0.001)
-  .name("轨道线宽度")
-  .onFinishChange(() => applyFlightGroups());
-fFly.addColor(params, "flightTrackColor").name("轨道线颜色");
-fFly.add(params, "flightTrackOpacity", 0, 1, 0.05).name("轨道线透明度");
-fFly.addColor(params, "waveColor").name("扩散波颜色");
-fFly.add(params, "waveOpacity", 0, 1, 0.01).name("扩散波透明度");
-fFly.add(params, "waveHeight", 0.01, 2.5, 0.01).name("扩散波高度");
-fFly.add(params, "waveRadius", 0.01, 2, 0.01).name("扩散波半径");
-fFly.add(params, "waveSpeed", 0.2, 3, 0.1).name("扩散波速度");
-fFly.add(params, "waveBright", 0.1, 3, 0.1).name("扩散波亮度");
+  // 护罩
+  const fShield = gui.addFolder(t("folder.shield"));
+  fShield.add(params, "shieldVisible").name(t("param.shieldVisible"));
+  fShield.add(params, "shieldOpacity", 0, 2, 0.05).name(t("param.shieldOpacity"));
+  fShield
+    .add(params, "shieldDirection", {
+      [t("param.shieldDirNorth")]: "northToSouth",
+      [t("param.shieldDirSouth")]: "southToNorth",
+    })
+    .name(t("param.shieldDirection"));
+  fShield.add(params, "shieldScanPeriod", 1, 20, 0.5).name(t("param.shieldScanPeriod"));
+  fShield.add(params, "shieldScanDuration", 0.5, 20, 0.5).name(t("param.shieldScanDuration"));
+  fShield.add(params, "shieldBandWidth", 0.03, 0.5, 0.01).name(t("param.shieldBandWidth"));
+  fShield.add(params, "shieldRepeat", 1, 30, 1).name(t("param.shieldRepeat"));
+  fShield.add(params, "shieldGlow", 0, 3, 0.05).name(t("param.shieldGlow"));
+  fShield.add(params, "shieldFresnel", 1, 6, 0.1).name(t("param.shieldFresnel"));
+  fShield.addColor(params, "shieldColor").name(t("param.shieldColor"));
 
-// 折叠部分分组，让面板更紧凑，保存按钮一眼可见（点击可展开）
-fEarth.close();
-fCloud.close();
-fAtm.close();
-fStar.close();
-fMark.close();
-fShield.close();
-fFly.close();
+  // 飞线
+  const fFly = gui.addFolder(t("folder.fly"));
+  fFly.add(params, "flightVisible").name(t("param.flightVisible"));
+  fFly.addColor(params, "flightLineColor").name(t("param.flightLineColor"));
+  fFly.add(params, "flightLineOpacity", 0, 1, 0.01).name(t("param.flightLineOpacity"));
+  fFly
+    .add(params, "flightArcHeight", 0.05, 0.9, 0.01)
+    .name(t("param.flightArcHeight"))
+    .onChange(() => applyFlightGroups());
+  fFly.add(params, "flightCometLength", 5, 200, 1).name(t("param.flightCometLength"));
+  fFly.add(params, "flightCometWidth", 2, 40, 1).name(t("param.flightCometWidth"));
+  fFly.add(params, "flightCometSize", 0.5, 8, 0.5).name(t("param.flightCometSize"));
+  fFly.add(params, "flightSpeed", 0.1, 5, 0.1).name(t("param.flightSpeed"));
+  fFly
+    .add(params, "flightTrackWidth", 0.002, 0.2, 0.001)
+    .name(t("param.flightTrackWidth"))
+    .onFinishChange(() => applyFlightGroups());
+  fFly.addColor(params, "flightTrackColor").name(t("param.flightTrackColor"));
+  fFly.add(params, "flightTrackOpacity", 0, 1, 0.05).name(t("param.flightTrackOpacity"));
+  fFly.addColor(params, "waveColor").name(t("param.waveColor"));
+  fFly.add(params, "waveOpacity", 0, 1, 0.01).name(t("param.waveOpacity"));
+  fFly.add(params, "waveHeight", 0.01, 2.5, 0.01).name(t("param.waveHeight"));
+  fFly.add(params, "waveRadius", 0.01, 2, 0.01).name(t("param.waveRadius"));
+  fFly.add(params, "waveSpeed", 0.2, 3, 0.1).name(t("param.waveSpeed"));
+  fFly.add(params, "waveBright", 0.1, 3, 0.1).name(t("param.waveBright"));
 
-// 启动时静默恢复上次保存的参数（若存在），并刷新面板显示
-try {
-  const raw = localStorage.getItem(PARAMS_KEY);
-  if (raw) {
+  // 折叠部分分组，让面板更紧凑，保存按钮一眼可见（点击可展开）
+  fEarth.close();
+  fCloud.close();
+  fAtm.close();
+  fStar.close();
+  fMark.close();
+  fShield.close();
+  fFly.close();
+
+  // 将面板显示同步到当前 params（含恢复后的值）
+  gui.controllersRecursive().forEach((c) => c.updateDisplay());
+}
+
+// 语言切换（右上角选择器）控件：绑定事件 + 刷新选项
+function buildLanguageBar() {
+  const sel = document.getElementById("langSelect");
+  const btn = document.getElementById("langRefresh");
+  if (sel) {
+    sel.addEventListener("change", async () => {
+      const ok = await switchTo(sel.value);
+      if (!ok) showToast(t("lang.switchFailed"));
+    });
+  }
+  if (btn) {
+    btn.addEventListener("click", async () => {
+      await refreshLanguages();
+      syncLanguageBar();
+    });
+  }
+}
+
+// 把语言下拉框的选项/当前值/提示刷新为当前可用语言
+function syncLanguageBar() {
+  const sel = document.getElementById("langSelect");
+  const btn = document.getElementById("langRefresh");
+  if (!sel) return;
+  const langs = getLanguages();
+  sel.innerHTML = "";
+  langs.forEach((l) => {
+    const o = document.createElement("option");
+    o.value = l.code;
+    o.textContent = l.name;
+    sel.appendChild(o);
+  });
+  sel.value = getCurrentCode();
+  sel.title = t("lang.placeholder");
+  if (btn) btn.title = t("lang.refreshTitle");
+}
+
+// 语言就绪/变化后：应用静态文本、重建 GUI、本地化城市名与标注、刷新语言条
+function applyLanguage() {
+  applyStaticText(); // index.html 中的 data-i18n / data-i18n-title
+  buildGui(); // GUI 标题、分组、控件名按当前语言重建
+  renderFlightTable(); // 飞线表格里的城市中文显示名 -> 当前语言
+  buildCityMarkers(); // 城市标注精灵文字 -> 当前语言
+  syncLanguageBar(); // 语言下拉框选项与提示
+  // 修正飞线面板「收起/展开」按钮文字（它受折叠状态影响）
+  const panel = document.getElementById("flightPanel");
+  const tgl = document.getElementById("flightPanelToggle");
+  if (panel && tgl) {
+    tgl.textContent = panel.classList.contains("collapsed")
+      ? t("flight.expand")
+      : t("flight.collapse");
+  }
+}
+
+// 静默恢复上次保存的参数（不弹提示；返回是否恢复成功）
+function restoreSavedParams() {
+  try {
+    const raw = localStorage.getItem(PARAMS_KEY);
+    if (!raw) return false;
     const data = JSON.parse(raw);
     for (const k of PARAM_KEYS) if (k in data) params[k] = data[k];
-    gui.controllersRecursive().forEach((c) => c.updateDisplay());
-    applyFlightGroups(); // 按恢复的分组重建飞线
+    return true;
+  } catch (e) {
+    return false;
   }
-} catch (e) {
-  /* 忽略损坏的数据 */
 }
+
+// 绑定语言切换回调，再加载语言；GUI 由 applyLanguage() 在语言就绪后构建
+buildLanguageBar();
+onLanguageChange(() => applyLanguage());
+restoreSavedParams();
+await initI18n(); // 加载语言 -> 触发 onLanguageChange -> applyLanguage()（构建 GUI 等）
+applyFlightGroups(); // 语言就绪后用当前语言重绘飞线表格并重建飞线
+gui.controllersRecursive().forEach((c) => c.updateDisplay());
 
 // 时段预设：设置太阳相对默认相机侧（+Z）的方位角 + 高度角
 function applyTimePreset(preset) {
