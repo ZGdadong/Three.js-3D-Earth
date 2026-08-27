@@ -43,7 +43,7 @@ https://github.com/user-attachments/assets/c67d653e-11fb-4e3e-a795-9dbbf4480a80
 ## 📁 Directory Structure
 
 ```
-StudyThree.js/
+Three.js-3D-Earth/
 ├─ index.html            # Entry page (importmap loads three.js + lil-gui; loader/HUD/language bar)
 ├─ js/
 │  ├─ main.js            # All scene & logic (shaders, materials, GUI, persistence, animation, i18n)
@@ -61,7 +61,7 @@ StudyThree.js/
 │  ├─ 8k_earth_normal_map.png    # Normal map (converted PNG for browsers)
 │  ├─ 8k_stars.jpg               # Star texture
 │  └─ 8k_stars_milky_way.jpg     # Milky-way star texture (backup)
-└─ thumb.png             # Preview thumbnail
+└─ Demo.png             # Preview thumbnail
 ```
 
 ---

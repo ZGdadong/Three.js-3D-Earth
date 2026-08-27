@@ -43,7 +43,7 @@ https://github.com/user-attachments/assets/c67d653e-11fb-4e3e-a795-9dbbf4480a80
 ## 📁 目录结构
 
 ```
-StudyThree.js/
+Three.js-3D-Earth/
 ├─ index.html            # 入口页面（importmap 引入 three.js、lil-gui，加载层/HUD/语言条）
 ├─ js/
 │  ├─ main.js            # 全部场景与逻辑（着色器、材质、GUI、持久化、动画、多语言）
@@ -61,7 +61,7 @@ StudyThree.js/
 │  ├─ 8k_earth_normal_map.png    # 法线贴图（转成 PNG 供浏览器使用）
 │  ├─ 8k_stars.jpg               # 星空贴图
 │  └─ 8k_stars_milky_way.jpg     # 银河星空贴图（备用）
-└─ thumb.png             # 预览截图
+└─ Demo.png             # 预览截图
 ```
 
 ---

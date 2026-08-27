@@ -20,7 +20,7 @@
 ## 1. 项目结构与运行
 
 ```
-StudyThree.js/
+Three.js-3D-Earth/
 ├─ index.html      # 入口：importmap 引入 three.js + lil-gui，加载层、HUD、语言条
 ├─ js/main.js      # 全部逻辑（约 1200 行）
 ├─ js/i18n.js      # 多语言加载器（Languages/*.json、切换、持久化、t() 翻译）
