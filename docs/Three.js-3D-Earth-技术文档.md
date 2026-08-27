@@ -268,6 +268,9 @@ uReveal.value = cycleTime < dur
 - **方向**：`northToSouth` → `uWave = sweep`（0→1）；`southToNorth` → `uWave = 1-sweep`（1→0）。
 - **总周期** = `period` 秒，其中扫动占 `dur` 秒。默认 `period = dur = 5`，即连续不停、每 5 秒扫一次。
 
+### 7.4 护罩可调参数（速查）
+`护罩透明度`（= `shieldOpacity`，驱动 `uOpacity`，0~2）、`护罩颜色`（`uColor`）、`纹理平铺次数`（`uRepeat`，1~30）、`能量带宽度`（`uBandWidth`）、`扫描方向/周期(秒)/单次时长(秒)`、`边缘亮度`（`uGlow`）、`边缘锐度`（`uFresnel`）。
+
 ---
 
 ## 8. 城市标注（经纬度 → 3D 坐标）
@@ -389,7 +392,7 @@ for t in [0,1]:
 ```
 这条曲线**始终在地球外侧**（即使两点近似对跖也不会穿过地球）。采样 180 个点：
 
-- **轨道线**：`new THREE.CatmullRomCurve3(pts)` → `TubeGeometry`，做半透明的"底线"。
+- **轨道线**：`new THREE.CatmullRomCurve3(pts)` → `TubeGeometry`，半径 = `flightTrackWidth`（默认 0.012，可调 0.002~0.2），颜色 = `flightTrackColor`，透明度 = `flightTrackOpacity`。做半透明的"底线"。
 - **飞线**：把 pts 作为 `Points`，附加 `aIndex`(0..180) 属性，用着色器只显示"移动中的一段"，形成流动的彗星。
 
 ### 12.3 飞线（彗星）着色器
@@ -402,23 +405,30 @@ gl_PointSize = max(vSize,0.0) * uSize * (6.0 / -viewPosition.z); // 距离衰减
 
 // 片元：圆形软点
 float d = length(gl_PointCoord - 0.5);
-alpha = smoothstep(0.5, 0.0, d);
+alpha = smoothstep(0.5, 0.0, d) * uOpacity;   // uOpacity = 飞线透明度
 gl_FragColor = vec4(uColor, alpha);
 ```
 `uTime` 每帧递增（约 4 秒走完 0..180），到 180 表示到达终点 → 触发该终点的扩散波 → 归零重来。
+
+> **深度遮挡**：飞线材质 `depthTest: true`（默认是 `false` 会导致**在地球背面的飞线也透视显示**）。开深度测试后，飞线被地球正确遮挡：正面可见、背面隐藏。（轨道线 `depthWrite:false`，不会挡住飞线主体。）
 
 ### 12.4 终点扩散波（Wall Shader）
 参考"Wall Shader"：用 `TubeGeometry` 沿一条**城市法线方向**的直线（高度 `waveHeight`），片元按**局部 Y 高度**做透明度渐变（底部亮、顶部透明），然后让它的 **X/Z 半径随时间扩展**、透明度随扩展降低：
 ```js
 mesh.scale.set(rScale, hScale, rScale); // 半径扩大、高度 = waveHeight
 mat.uniforms.uFade.value = 1 - phase;   // 越扩越淡
+mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 ```
-每组飞线到终点时把该终点扩散波 `phase` 归零，重新扩散 → 形成"到达即扩散"的圆形波。朝向：用 `setFromUnitVectors((0,1,0), normal)` 让局部 +Y 对准城市法线。
+每组飞线到终点时把该终点扩散波 `phase` 归零，重新扩散 → 形成"到达即扩散"的圆形波。朝向：用 `setFromUnitVectors((0,1,0), normal)` 让局部 +Y 对准城市法线。`waveRadius`/`waveHeight` 可调（最小可到 0.01，做很细小的波）。
 
 ### 12.5 配置
 - **分组设置**：页面左侧「✈️ 飞线设置」表格，每行 = 起点城市(下拉) + 终点城市(下拉) + 增加/删除；「＋」复制本行起点以给同一组加终点，「－」删除本行，「＋新增分组」加一行。所有行按**起点相同**归成一组（`{source, targets:[...]}`），修改即 `rebuild()->flightLines.rebuild(groups, arcHeight)`。
   > 内部数据 `flightRows=[{source,target}]`，分组由 `rowGroups()` 按 source 聚合。
-- **样式**：颜色、弧线高度、彗星长度/粗细/大小、飞行速度、轨道透明度、扩散波颜色/高度/半径/速度/亮度，通过 `flightLines.update(delta, elapsed, style)` 每帧传入。
+- **样式**（`flightLines.update(delta, elapsed, style)` 每帧传入）：
+  飞线 `flightLineColor / flightLineOpacity / flightCometLength / flightCometWidth / flightCometSize / flightSpeed`；
+  轨道线 `flightTrackWidth / flightTrackColor / flightTrackOpacity`；
+  扩散波 `waveColor / waveOpacity / waveHeight / waveRadius / waveSpeed / waveBright`；弧线 `flightArcHeight`（改高度需重建）。
+- **轨道线宽度/颜色** 等几何参数在创建时定死，改宽度要重建飞线（滑杆用 `.onFinishChange` 松手才重建）。
 
 ---
 
@@ -429,4 +439,5 @@ mat.uniforms.uFade.value = 1 - phase;   // 越扩越淡
 - **护罩贴图出现接缝**：生成时没在边界外多画一圈，或没设 `RepeatWrapping`。
 - **面板刷新无效**：用了 `gui.controllers` 而没用 `gui.controllersRecursive()`。
 - **法线贴图看不到效果**：没调 `normalStrength`（=0 会关闭），或没 `computeTangents()`。
+- **飞线在地球背面也显示**：飞线材质不要设 `depthTest:false`，否则会被"透视"画出来；应设 `depthTest:true` 让地球遮挡背面飞线。
 ```
