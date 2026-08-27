@@ -164,11 +164,12 @@ const FLY_VERT = /* glsl */ `
 const FLY_FRAG = /* glsl */ `
   varying float vSize;
   uniform vec3 uColor;
+  uniform float uOpacity;
   void main() {
     if (vSize <= 0.0) { gl_FragColor = vec4(0.0); return; }
     vec2 c = gl_PointCoord - 0.5;
     float d = length(c);
-    float alpha = smoothstep(0.5, 0.0, d); // 圆形软点
+    float alpha = smoothstep(0.5, 0.0, d) * uOpacity; // 圆形软点 * 透明度
     gl_FragColor = vec4(uColor, alpha);
   }
 `;
@@ -184,13 +185,14 @@ const WAVE_VERT = /* glsl */ `
 const WAVE_FRAG = /* glsl */ `
   uniform vec3 uColor;
   uniform float uBright;
+  uniform float uOpacity;
   uniform float uMinY;
   uniform float uMaxY;
   uniform float uFade; // 随扩展淡出
   varying float vLocalY;
   void main() {
     float h = clamp((vLocalY - uMinY) / (uMaxY - uMinY + 1e-4), 0.0, 1.0);
-    float opacity = (1.0 - h) * uBright * uFade; // 底部亮、顶部透明
+    float opacity = (1.0 - h) * uBright * uFade * uOpacity; // 底部亮、顶部透明
     gl_FragColor = vec4(uColor, opacity);
   }
 `;
@@ -282,6 +284,7 @@ export class FlightLines {
         uWidth: { value: 10 },
         uSize: { value: 4 },
         uColor: { value: new THREE.Color("#4fd0ff") },
+        uOpacity: { value: 1.0 },
       },
       vertexShader: FLY_VERT,
       fragmentShader: FLY_FRAG,
@@ -331,6 +334,7 @@ export class FlightLines {
       uniforms: {
         uColor: { value: new THREE.Color("#40e0ff") },
         uBright: { value: 1.0 },
+        uOpacity: { value: 1.0 },
         uMinY: { value: minY },
         uMaxY: { value: maxY },
         uFade: { value: 1.0 },
@@ -372,6 +376,7 @@ export class FlightLines {
     const length = style.cometLength ?? 60;
     const size = style.cometSize ?? 4;
     const waveColor = style.waveColor || "#40e0ff";
+    const waveOpacity = style.waveOpacity ?? 1;
     const waveHeight = style.waveHeight ?? 0.6;
     const waveRadius = style.waveRadius ?? 0.6;
     const waveSpeed = style.waveSpeed ?? 0.9;
@@ -396,6 +401,7 @@ export class FlightLines {
       l.flyMat.uniforms.uWidth.value = width;
       l.flyMat.uniforms.uSize.value = size;
       l.flyMat.uniforms.uColor.value.set(color);
+      l.flyMat.uniforms.uOpacity.value = style.lineOpacity ?? 1;
       l.trackMat.uniforms.uColor.value.set(style.trackColor || color);
       l.trackMat.uniforms.uOpacity.value = trackOpacity;
     });
@@ -418,6 +424,7 @@ export class FlightLines {
       r.mat.uniforms.uFade.value = 1 - p; // 越扩越淡
       r.mat.uniforms.uBright.value = waveBright;
       r.mat.uniforms.uColor.value.set(waveColor);
+      r.mat.uniforms.uOpacity.value = waveOpacity;
     });
   }
 

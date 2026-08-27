@@ -121,6 +121,7 @@ const params = {
   // 飞线（1 起点 + n 终点，多组）
   flightVisible: true,
   flightLineColor: "#4fd0ff", // 飞线颜色
+  flightLineOpacity: 1.0, // 飞线透明度
   flightArcHeight: 0.35, // 弧线高度（相对地球半径的比例）
   flightCometLength: 60, // 彗星尾巴长度（点数）
   flightCometWidth: 10, // 彗星粗细（越大越细）
@@ -131,6 +132,7 @@ const params = {
   flightTrackOpacity: 0.28, // 轨道线透明度
   // 终点扩散波
   waveColor: "#40e0ff", // 扩散波颜色
+  waveOpacity: 1.0, // 扩散波透明度
   waveHeight: 0.6, // 扩散波高度
   waveRadius: 0.6, // 扩散波半径
   waveSpeed: 0.9, // 扩散波速度
@@ -157,9 +159,9 @@ const PARAM_KEYS = [
   "markersVisible",
   "shieldVisible", "shieldOpacity", "shieldDirection", "shieldScanPeriod", "shieldScanDuration",
   "shieldBandWidth", "shieldRepeat", "shieldGlow", "shieldFresnel", "shieldColor",
-  "flightVisible", "flightLineColor", "flightArcHeight", "flightCometLength", "flightCometWidth",
+  "flightVisible", "flightLineColor", "flightLineOpacity", "flightArcHeight", "flightCometLength", "flightCometWidth",
   "flightCometSize", "flightSpeed", "flightTrackWidth", "flightTrackColor", "flightTrackOpacity",
-  "waveColor", "waveHeight", "waveRadius", "waveSpeed", "waveBright",
+  "waveColor", "waveOpacity", "waveHeight", "waveRadius", "waveSpeed", "waveBright",
   "flightGroupsJson",
 ];
 const DEFAULT_PARAMS = { ...params }; // 默认值快照（此时 params 仅含数据项）
@@ -935,7 +937,7 @@ fSave.add(params, "export").name("导出为 JSON 文件");
 // 护罩
 const fShield = gui.addFolder("护罩 · 能量波");
 fShield.add(params, "shieldVisible").name("显示护罩");
-fShield.add(params, "shieldOpacity", 0, 2, 0.05).name("发光强度");
+fShield.add(params, "shieldOpacity", 0, 2, 0.05).name("护罩透明度");
 fShield.add(params, "shieldDirection", {
   "北极→南极": "northToSouth",
   "南极→北极": "southToNorth",
@@ -952,6 +954,7 @@ fShield.addColor(params, "shieldColor").name("护罩颜色");
 const fFly = gui.addFolder("✈️ 飞线");
 fFly.add(params, "flightVisible").name("显示飞线");
 fFly.addColor(params, "flightLineColor").name("飞线颜色");
+fFly.add(params, "flightLineOpacity", 0, 1, 0.01).name("飞线透明度");
 fFly.add(params, "flightArcHeight", 0.05, 0.9, 0.01)
   .name("弧线高度")
   .onChange(() => applyFlightGroups());
@@ -965,6 +968,7 @@ fFly.add(params, "flightTrackWidth", 0.002, 0.2, 0.001)
 fFly.addColor(params, "flightTrackColor").name("轨道线颜色");
 fFly.add(params, "flightTrackOpacity", 0, 1, 0.05).name("轨道线透明度");
 fFly.addColor(params, "waveColor").name("扩散波颜色");
+fFly.add(params, "waveOpacity", 0, 1, 0.01).name("扩散波透明度");
 fFly.add(params, "waveHeight", 0.01, 2.5, 0.01).name("扩散波高度");
 fFly.add(params, "waveRadius", 0.01, 2, 0.01).name("扩散波半径");
 fFly.add(params, "waveSpeed", 0.2, 3, 0.1).name("扩散波速度");
@@ -1135,6 +1139,7 @@ function animate() {
   flightLines.update(delta, elapsed, {
     visible: params.flightVisible,
     lineColor: params.flightLineColor,
+    lineOpacity: params.flightLineOpacity,
     flightSpeed: params.flightSpeed,
     cometLength: params.flightCometLength,
     cometWidth: params.flightCometWidth,
@@ -1142,6 +1147,7 @@ function animate() {
     trackColor: params.flightTrackColor,
     trackOpacity: params.flightTrackOpacity,
     waveColor: params.waveColor,
+    waveOpacity: params.waveOpacity,
     waveHeight: params.waveHeight,
     waveRadius: params.waveRadius,
     waveSpeed: params.waveSpeed,
