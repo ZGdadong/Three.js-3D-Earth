@@ -214,7 +214,7 @@ export class FlightLines {
 
   // 根据 groups 重建飞线与扩散波
   // groups = [{ source:'北京', targets:['上海','纽约',...] }, ...]
-  rebuild(groups, arcHeight = 0.35) {
+  rebuild(groups, arcHeight = 0.35, trackWidth = 0.012) {
     this.clear();
     (groups || []).forEach((g) => {
       const src = CITY_MAP[g.source];
@@ -232,18 +232,18 @@ export class FlightLines {
         }
         const dstPos = latLonToVec3(dst.lat, dst.lon, this.radius);
         const dstUnit = dstPos.clone().normalize();
-        this._addLine(srcPos.clone(), dstPos.clone(), srcUnit, dstUnit, tname, arcHeight);
+        this._addLine(srcPos.clone(), dstPos.clone(), srcUnit, dstUnit, tname, arcHeight, trackWidth);
       });
     });
   }
 
-  _addLine(srcPos, dstPos, srcUnit, dstUnit, destName, arcHeight) {
+  _addLine(srcPos, dstPos, srcUnit, dstUnit, destName, arcHeight, trackWidth) {
     const divisions = 180;
     const pts = arcPoints(srcUnit, dstUnit, this.radius, arcHeight, divisions);
 
     // ---- 轨道线（TubeGeometry）----
     const curve = new THREE.CatmullRomCurve3(pts);
-    const trackGeo = new THREE.TubeGeometry(curve, divisions, 0.022, 8, false);
+    const trackGeo = new THREE.TubeGeometry(curve, divisions, trackWidth, 8, false);
     const trackMat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,

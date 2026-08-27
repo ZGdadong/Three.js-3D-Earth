@@ -126,6 +126,7 @@ const params = {
   flightCometWidth: 10, // 彗星粗细（越大越细）
   flightCometSize: 2, // 彗星整体大小
   flightSpeed: 1, // 飞行速度倍率
+  flightTrackWidth: 0.012, // 轨道线宽度
   flightTrackOpacity: 0.28, // 轨道线透明度
   // 终点扩散波
   waveColor: "#40e0ff", // 扩散波颜色
@@ -156,7 +157,7 @@ const PARAM_KEYS = [
   "shieldVisible", "shieldOpacity", "shieldDirection", "shieldScanPeriod", "shieldScanDuration",
   "shieldBandWidth", "shieldRepeat", "shieldGlow", "shieldFresnel", "shieldColor",
   "flightVisible", "flightLineColor", "flightArcHeight", "flightCometLength", "flightCometWidth",
-  "flightCometSize", "flightSpeed", "flightTrackOpacity",
+  "flightCometSize", "flightSpeed", "flightTrackWidth", "flightTrackOpacity",
   "waveColor", "waveHeight", "waveRadius", "waveSpeed", "waveBright",
   "flightGroupsJson",
 ];
@@ -759,7 +760,7 @@ function rowGroups() {
 
 function rebuildFlight() {
   params.flightGroupsJson = JSON.stringify(flightRows, null, 2); // 供持久化
-  flightLines.rebuild(rowGroups(), params.flightArcHeight);
+  flightLines.rebuild(rowGroups(), params.flightArcHeight, params.flightTrackWidth);
 }
 
 function applyFlightGroups() {
@@ -957,6 +958,9 @@ fFly.add(params, "flightCometLength", 5, 200, 1).name("彗星长度");
 fFly.add(params, "flightCometWidth", 2, 40, 1).name("彗星粗细");
 fFly.add(params, "flightCometSize", 0.5, 8, 0.5).name("彗星大小");
 fFly.add(params, "flightSpeed", 0.1, 5, 0.1).name("飞行速度");
+fFly.add(params, "flightTrackWidth", 0.002, 0.2, 0.001)
+  .name("轨道线宽度")
+  .onFinishChange(() => applyFlightGroups());
 fFly.add(params, "flightTrackOpacity", 0, 1, 0.05).name("轨道线透明度");
 fFly.addColor(params, "waveColor").name("扩散波颜色");
 fFly.add(params, "waveHeight", 0.01, 2.5, 0.01).name("扩散波高度");
