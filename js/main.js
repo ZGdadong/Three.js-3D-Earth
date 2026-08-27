@@ -960,7 +960,7 @@ fFly.add(params, "flightSpeed", 0.1, 5, 0.1).name("飞行速度");
 fFly.add(params, "flightTrackOpacity", 0, 1, 0.05).name("轨道线透明度");
 fFly.addColor(params, "waveColor").name("扩散波颜色");
 fFly.add(params, "waveHeight", 0.1, 2.5, 0.05).name("扩散波高度");
-fFly.add(params, "waveRadius", 0.1, 2, 0.05).name("扩散波半径");
+fFly.add(params, "waveRadius", 0.01, 2, 0.01).name("扩散波半径");
 fFly.add(params, "waveSpeed", 0.2, 3, 0.1).name("扩散波速度");
 fFly.add(params, "waveBright", 0.1, 3, 0.1).name("扩散波亮度");
 
