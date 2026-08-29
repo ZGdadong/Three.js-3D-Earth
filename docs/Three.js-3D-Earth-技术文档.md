@@ -556,7 +556,7 @@ Three.js 的 `WebGLRenderer` 默认 `preserveDrawingBuffer: false`。此时 `can
      if (!recordTrack || !mediaRecorder || mediaRecorder.state !== "recording") return;
      try { if (recordTrack.requestFrame) recordTrack.requestFrame(); } catch (e) {}
    }
-```
+   ```
 
 ### 15.3 边界与说明
 - 只录画布、**不含** lil-gui 面板 / 提示 / 按钮等 DOM，画质更纯净。
