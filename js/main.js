@@ -84,6 +84,10 @@ const chinaMap = createChinaMap({
   height: window.innerHeight,
 });
 
+// 视图模式（earth | china）。声明提前到 i18n 初始化之前，
+// 因为 applyLanguage() 会读取它（语言切换回调在 initI18n 里触发）。
+let mode = "earth";
+
 // ---------------------------------------------------------------------------
 // 尺寸常量
 // ---------------------------------------------------------------------------
@@ -1164,8 +1168,6 @@ const clock = new THREE.Clock();
 // ---------------------------------------------------------------------------
 // 视图切换：地球 / 中国地图
 // ---------------------------------------------------------------------------
-let mode = "earth"; // earth | china
-
 function viewToggleEl() {
   return document.getElementById("viewToggle");
 }

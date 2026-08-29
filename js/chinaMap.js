@@ -113,7 +113,7 @@ function createTopMaterial() {
   });
 }
 
-// ---- 区域侧面材质：底部深蓝 → 顶部青蓝渐变 + 扫描能量波 + 悬停变亮 ----
+// ---- 区域侧面材质：底部深蓝 → 顶部青蓝渐变 + 整图扫描波 + 悬停增亮(保留渐变) + 侧面扫描 ----
 function createSideMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -125,6 +125,10 @@ function createSideMaterial() {
       uScanWidth: { value: 0.5 },
       uScanColor: { value: new THREE.Color(0x57e0ff) },
       uScanIntensity: { value: 0 },
+      uSideScan: { value: 0 },
+      uSideScanWidth: { value: 0.08 },
+      uSideScanColor: { value: new THREE.Color(0x4fd0ff) },
+      uSideScanIntensity: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vPos;
@@ -144,15 +148,25 @@ function createSideMaterial() {
       uniform float uScanWidth;
       uniform vec3 uScanColor;
       uniform float uScanIntensity;
+      uniform float uSideScan;
+      uniform float uSideScanWidth;
+      uniform vec3 uSideScanColor;
+      uniform float uSideScanIntensity;
       varying vec3 vPos;
       varying vec3 vWorldPos;
       void main() {
         float h = clamp(vPos.z / ${DEPTH.toFixed(3)}, 0.0, 1.0);
+        // 底部深、顶部亮的垂直渐变（悬停时越靠顶部越亮，底部保持沉底的深色）
         vec3 col = mix(uBase, uTop, h * h);
-        col = mix(col, uHover, uH);
+        col = mix(col, uHover, uH * h);
+        // 整图扫描波（沿世界 Z，从下到上扫过）
         float d = abs(vWorldPos.z - uScan);
         float scan = exp(-pow(d / uScanWidth, 2.0));
         col += uScanColor * scan * uScanIntensity;
+        // 侧面扫描波（沿高度 vPos.z，从底到顶扫过）
+        float sd = abs(vPos.z - uSideScan);
+        float sideScan = exp(-pow(sd / uSideScanWidth, 2.0));
+        col += uSideScanColor * sideScan * uSideScanIntensity;
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -266,12 +280,18 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     ringGap: 55, // 缺口大小（度）
     ringGapStart: 120, // 缺口起始位置（度）
     ringSpeed: 0.45,
-    // 扫描能量波
+    // 整图扫描能量波（从下到上扫过）
     scanOn: true,
     scanSpeed: 0.25,
     scanWidth: 0.5,
     scanIntensity: 0.7,
     scanColor: "#57e0ff",
+    // 侧面扫描波（沿挤出块高度从底到顶）
+    sideScanOn: true,
+    sideScanSpeed: 0.5,
+    sideScanWidth: 0.08,
+    sideScanIntensity: 0.9,
+    sideScanColor: "#4fd0ff",
   };
 
   // ---- 底部台面 ----
@@ -322,6 +342,11 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     fScan.add(chinaParams, "scanWidth", 0.05, 2, 0.05).name(t("china.scanWidth"));
     fScan.add(chinaParams, "scanIntensity", 0, 2, 0.05).name(t("china.scanIntensity"));
     fScan.addColor(chinaParams, "scanColor").name(t("china.scanColor"));
+    fScan.add(chinaParams, "sideScanOn", true).name(t("china.sideScanOn"));
+    fScan.add(chinaParams, "sideScanSpeed", 0, 1, 0.01).name(t("china.sideScanSpeed"));
+    fScan.add(chinaParams, "sideScanWidth", 0.02, 0.5, 0.01).name(t("china.sideScanWidth"));
+    fScan.add(chinaParams, "sideScanIntensity", 0, 2, 0.05).name(t("china.sideScanIntensity"));
+    fScan.addColor(chinaParams, "sideScanColor").name(t("china.sideScanColor"));
     // 明确位置 / 层级，且显示与否由 active 控制（避免与语言条/地球面板重叠或遮住）
     chinaGui.domElement.style.position = "fixed";
     chinaGui.domElement.style.right = "12px";
@@ -349,6 +374,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     downT = 0;
   let clickTimer = null;
   let scanPhase = 0;
+  let sideScanPhase = 0;
   let lastRingKey = "";
 
   // ---- DOM ----
@@ -479,6 +505,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     const y = 0.45;
     const bounds = new THREE.Box3();
     scanPhase = 0;
+    sideScanPhase = 0;
 
     features.forEach((f) => {
       const props = f.properties;
@@ -732,6 +759,20 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       m.uniforms.uScanWidth.value = chinaParams.scanWidth;
       m.uniforms.uScanColor.value.set(chinaParams.scanColor);
       m.uniforms.uScanIntensity.value = scanIntensity;
+    }
+
+    // ---- 侧面扫描波（沿挤出块高度从底到顶）----
+    sideScanPhase += delta * chinaParams.sideScanSpeed;
+    const sp = sideScanPhase % period;
+    const sSweep = Math.min(sp / dur, 1);
+    const sideScanPos = DEPTH * sSweep; // 底部 0 -> 顶部 DEPTH
+    const sReveal = sp < dur ? Math.min(sp / fade, (dur - sp) / fade, 1) : 0;
+    const sideScanIntensity = chinaParams.sideScanOn ? chinaParams.sideScanIntensity * sReveal : 0;
+    for (const m of currentSideMats) {
+      m.uniforms.uSideScan.value = sideScanPos;
+      m.uniforms.uSideScanWidth.value = chinaParams.sideScanWidth;
+      m.uniforms.uSideScanColor.value.set(chinaParams.sideScanColor);
+      m.uniforms.uSideScanIntensity.value = sideScanIntensity;
     }
 
     // ---- 旋转圆环 ----
