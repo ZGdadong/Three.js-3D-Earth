@@ -334,9 +334,10 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   }
   // 铺满全屏的云带：把多朵云铺成一条比视口更宽的横带（同一种图片可出现多次），
   // 过渡时整条带子从右往左滑过，始终盖住屏幕，最后淡出露出新图。
-  // 注：云图本身有透明边距（图 200×100 只有中心 150×75 是云，约 75%），
-  // 所以用 background-size>100% 把云放大填满格子，并提高密度让相邻云互相重叠、完全遮盖。
-  const CLOUD_BG_SIZE = "150% 150%"; // 覆盖中心 75% 的云需放大 ~1.33 倍，取 1.5 更保险
+  // 说明：云图有透明边距（图 200×100 只有中心 75% 是云）。用 background-size 仅放大到
+  // 云仍完整留在格子里（120%），确保软边不被格子的直线裁掉；再用“高抖动”的散布摆放，
+  // 看起来凌乱自然而非规整表格。密度 6 行 × 12 列 ≈ 72 朵（约原来的 3 倍）。
+  const CLOUD_BG_SIZE = "120% 120%"; // 云占格子约 90%，四周留透明边，软边不被切
   function spawnClouds() {
     const ov = ensureCloudOverlay();
     ov.innerHTML = "";
@@ -347,16 +348,19 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     ov.appendChild(strip);
     cloudStrip = strip;
     cloudEls = [];
-    const rows = [6, 26, 46, 66, 86]; // 五行，纵向铺满
-    const cols = 20; // 密度约为原来的 4 倍（原 3×8=24 → 5×20=100）
-    const colSpacing = 17;
+    const rows = [2, 18, 34, 50, 66, 82]; // 六个基准行
+    const cols = 12;
+    const rowJitter = 12; // 竖向随机抖动（vh），打散成行
+    const colSpacing = 26;
+    const colJitter = 16; // 横向随机抖动（vw），打散成列
     for (let r = 0; r < rows.length; r++) {
+      const baseY = rows[r];
       for (let c = 0; c < cols; c++) {
         const el = document.createElement("div");
         const img = CLOUD_FILES[(r * cols + c) % CLOUD_FILES.length];
-        const size = 34 + Math.random() * 12; // 每朵云宽（相对视口）
-        const x = c * colSpacing + (Math.random() * 14 - 7);
-        const y = rows[r] + (Math.random() * 8 - 4);
+        const size = 36 + Math.random() * 16; // 每朵云宽（相对视口）
+        const x = c * colSpacing + (Math.random() * 2 - 1) * colJitter;
+        const y = baseY + (Math.random() * 2 - 1) * rowJitter;
         el.style.cssText =
           `position:absolute;left:${x}vw;top:${y}vh;width:${size}vw;aspect-ratio:1.6;` +
           `background-image:url('${img}');background-size:${CLOUD_BG_SIZE};background-position:center;` +
