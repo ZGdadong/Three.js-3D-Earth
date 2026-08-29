@@ -1373,6 +1373,12 @@ function setMode(next) {
   chinaMap.setActive(isChina);
   // 进入中国地图时隐藏地球参数面板，避免两者重叠
   if (gui) gui.domElement.style.display = isChina ? "none" : "";
+  // 进入中国地图时强制重置并隐藏地球上的“中国”提示，
+  // 避免云过渡期间残留的 pointermove 又重新把它显示出来并一直留在屏幕上
+  if (isChina) {
+    chinaOnEarthHover = false;
+    earthChinaTip.style.display = "none";
+  }
   clock.getDelta(); // 清掉切换瞬间累积的 delta，避免下一帧跳变
   updateViewToggle();
 }
