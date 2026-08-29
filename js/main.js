@@ -62,7 +62,9 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(0, 0.8, 6.5);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// preserveDrawingBuffer: true —— 关键：让 WebGL 画布可在录制时被逐帧读回。
+// 否则 canvas.captureStream 对 WebGL 只捕到第一帧，录出来像一张静态截图。
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1405,6 +1407,7 @@ function getRecordQuality() {
 }
 var mediaRecorder = null;
 var recordStream = null;
+var recordTrack = null; // 用于逐帧 requestFrame()，保证视频每一帧都捕获到
 var recordChunks = [];
 var recordTimer = null;
 var recordSec = 0;
@@ -1500,6 +1503,7 @@ function startRecording() {
     return;
   }
   recordStream = stream;
+  recordTrack = (stream.getVideoTracks && stream.getVideoTracks()[0]) || null;
   recordChunks = [];
   mediaRecorder.ondataavailable = (e) => {
     if (e.data && e.data.size) recordChunks.push(e.data);
@@ -1508,6 +1512,7 @@ function startRecording() {
     downloadRecording(mime);
     mediaRecorder = null;
     recordStream = null;
+    recordTrack = null;
   };
   mediaRecorder.start(1000); // 每秒收集一块，保证最后一块完整写入
   recordSec = 0;
@@ -1519,6 +1524,17 @@ function startRecording() {
   showToast(t("rec.started"));
   setRecordingUi(true);
   updateRecordUI();
+}
+
+// 每帧渲染后调用：主动把当前帧推送给录制流。
+// 对 WebGL 画布，captureStream(0) 的自动捕获有时不可靠，requestFrame() 是确定性触发逐帧捕获。
+function captureRecordFrame() {
+  if (!recordTrack || !mediaRecorder || mediaRecorder.state !== "recording") return;
+  try {
+    if (recordTrack.requestFrame) recordTrack.requestFrame();
+  } catch (e) {
+    /* ignore */
+  }
 }
 
 function stopRecording() {
@@ -1549,6 +1565,7 @@ function animate() {
   if (mode === "china") {
     chinaMap.update(delta);
     renderer.render(chinaMap.scene, chinaMap.camera);
+    captureRecordFrame();
     return;
   }
 
@@ -1667,6 +1684,7 @@ function animate() {
 
   controls.update();
   renderer.render(scene, camera);
+  captureRecordFrame();
 }
 animate();
 
