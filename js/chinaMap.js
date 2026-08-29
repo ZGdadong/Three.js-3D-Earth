@@ -514,37 +514,37 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   // ---- 可调参数（供 lil-gui 面板）----
   const chinaParams = {
     // 显示
-    glow: 0.4,
-    float: 0.24,
+    glow: 1,
+    float: 0.14,
     terrain: true,
     terrainAmount: 0.85,
     depth: 0.35, // 挤出厚度（块的高度）
-    bevel: 0.06, // 轮廓放大（倒角），越小块越接近真实面积
+    bevel: 0.005, // 轮廓放大（倒角），越小块越接近真实面积
     // 两圈旋转圆环（各自独立设置）
     ring1: {
       visible: true,
       color: "#3fd0ff",
-      opacity: 0.72,
+      opacity: 0.23,
       width: 0.28,
-      gapCount: 3, // 等分份数 = 缺口数量：3 = 每 1/3 有一个缺口
-      gap: 55, // 单个缺口大小（度）
+      gapCount: 4, // 等分份数 = 缺口数量：4 = 每 1/4 有一个缺口
+      gap: 35, // 单个缺口大小（度）
       speed: 0.45,
     },
     ring2: {
       visible: true,
       color: "#2fb9e8",
-      opacity: 0.55,
+      opacity: 0.81,
       width: 0.2,
       gapCount: 4, // 每 1/4 有一个缺口
-      gap: 40,
-      speed: 0.3,
+      gap: 25,
+      speed: 0.25,
     },
     // 整图扫描能量波（从下到上扫过）
     scanOn: true,
-    scanSpeed: 0.25,
+    scanSpeed: 0.27,
     scanWidth: 0.5,
-    scanIntensity: 0.7,
-    scanColor: "#57e0ff",
+    scanIntensity: 0.35,
+    scanColor: "#82d0ff",
     // 侧面扫描波（沿挤出块高度从底到顶）
     sideScanOn: true,
     sideScanSpeed: 0.5,
@@ -561,15 +561,15 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       height: -0.005, // 栅格高度（相对发光圆盘）
       // 交点“+”
       plusOn: true,
-      plusColor: "#9fd4ff", // “+”颜色
+      plusColor: "#3173a8", // “+”颜色
       plusSize: 0.2, // “+”臂半长（世界单位）
-      plusOpacity: 0.9, // “+”透明度
+      plusOpacity: 0.3, // “+”透明度
       // 圆点“.”
       dotOn: true,
       dotColor: "#7fd0ff", // 圆点颜色
       dotSize: 0.055, // 圆点半径（世界单位）
-      dotSpacing: 2, // 每个格子细分成几份
-      dotOpacity: 0.95, // 圆点透明度
+      dotSpacing: 6, // 每个格子细分成几份
+      dotOpacity: 0.1, // 圆点透明度
     },
   };
 
