@@ -325,7 +325,7 @@ function buildGridDecor(cfg) {
     const mat = new THREE.LineBasicMaterial({
       color: cfg.plusColor,
       transparent: true,
-      opacity: 0.9,
+      opacity: cfg.plusOpacity,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
@@ -334,13 +334,14 @@ function buildGridDecor(cfg) {
 
   if (cfg.dotOn) {
     const positions = [];
-    // 把每个原始格子再细分成 dotSpacing 份，圆点放在细分后的小格顶点上。
-    // 若把这些点连起来，正好把原格子切成更多小格子；但只是放点、不连线。
+    // 把每个原始格子再细分成 dotSpacing 份，圆点放在细分后小格的顶点上。
+    // 恰好落在栅格实体线（原网格线）上的点不显示，只保留格子内部的圆点。
     const sub = Math.max(1, Math.round(cfg.dotSpacing));
     const subDiv = div * sub;
     const subSpacing = spacing / sub;
     for (let i = 0; i <= subDiv; i++) {
       for (let j = 0; j <= subDiv; j++) {
+        if (i % sub === 0 || j % sub === 0) continue; // 落在线上，跳过
         const x = -half + i * subSpacing;
         const z = -half + j * subSpacing;
         positions.push(x, 0, z);
@@ -353,7 +354,7 @@ function buildGridDecor(cfg) {
       size: Math.max(0.03, cfg.dotSize * 2), // size 是直径（世界单位）
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.95,
+      opacity: cfg.dotOpacity,
       map: getDotTexture(),
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -537,11 +538,13 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       plusOn: true,
       plusColor: "#9fd4ff", // “+”颜色
       plusSize: 0.2, // “+”臂半长（世界单位）
+      plusOpacity: 0.9, // “+”透明度
       // 圆点“.”
       dotOn: true,
       dotColor: "#7fd0ff", // 圆点颜色
       dotSize: 0.055, // 圆点半径（世界单位）
-      dotSpacing: 2, // 圆点间隔（每几个格子放一个点）
+      dotSpacing: 2, // 每个格子细分成几份
+      dotOpacity: 0.95, // 圆点透明度
     },
   };
 
@@ -814,6 +817,10 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       .add(chinaParams.grid, "plusSize", 0.05, 1, 0.01)
       .name(t("china.gridPlusSize"))
       .onChange(() => rebuildGridDecor());
+    fGrid
+      .add(chinaParams.grid, "plusOpacity", 0, 1, 0.01)
+      .name(t("china.gridPlusOpacity"))
+      .onChange(() => rebuildGridDecor());
     // 圆点“.”
     fGrid.add(chinaParams.grid, "dotOn").name(t("china.gridDotOn")).onChange(() => rebuildGridDecor());
     fGrid.addColor(chinaParams.grid, "dotColor").name(t("china.gridDotColor")).onChange(() => rebuildGridDecor());
@@ -824,6 +831,10 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     fGrid
       .add(chinaParams.grid, "dotSpacing", 1, 6, 1)
       .name(t("china.gridDotSpacing"))
+      .onChange(() => rebuildGridDecor());
+    fGrid
+      .add(chinaParams.grid, "dotOpacity", 0, 1, 0.01)
+      .name(t("china.gridDotOpacity"))
       .onChange(() => rebuildGridDecor());
 
     // 参数保存 / 载入 / 导入 / 恢复默认 / 导出（与地球一致）

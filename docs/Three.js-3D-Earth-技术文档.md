@@ -484,7 +484,7 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 ### 14.4 底部台面（发光圆盘 + 栅格 + 圆环）
 - 发光渐变**圆盘**（径向渐变的 Canvas 贴图）+ `GridHelper` 栅格。
 - **底部栅格**（`chinaParams.grid`）在「底部栅格」文件夹里可调：`size`（网格范围）、`divisions`（分割份数）、`colorCenter/colorLine`（中心线/细线颜色）、`opacity`（栅格透明度）、`height`（栅格高度）。`size/divisions/颜色` 改变需 `rebuildGrid()` 重建几何；`opacity/height` 用 `updateGrid()` 实时更新。
-- **栅格美术装饰**：`buildGridDecor()` 在**每个网格交点**画一个「+」（`plusColor`/`plusSize` 可调臂半长、颜色）；再在**细分后的亚网格顶点**放**圆点「.」**——`dotSpacing`（每格细分数）决定把一个原始格子切成多少份，圆点落在细分后的小格交点上（数量多，若把这些点连起来正好把原格子切成更多小格子；但只放点、**不连线**），`dotColor`/`dotSize` 可调颜色与大小。两者错开不重叠，让栅格更丰富不单调；相关参数改动走 `rebuildGridDecor()` 重建。圆点用圆形 Canvas 贴图的 `THREE.Points` 渲染，性能好。
+- **栅格美术装饰**：`buildGridDecor()` 在**每个网格交点**画一个「+」（`plusColor`/`plusSize`/`plusOpacity` 可调颜色、臂半长、透明度）；再在**细分后的亚网格顶点**放**圆点「.」**——`dotSpacing`（每格细分数）决定把一个原始格子切成多少份，且**恰好落在栅格实体线上的点会自动跳过**，只保留格子内部的圆点（连起来即把格子切成更小格子，但只放点、**不连线**）；`dotColor`/`dotSize`/`dotOpacity` 可调颜色、大小、透明度。两者错开不重叠，让栅格更丰富不单调；相关参数改动走 `rebuildGridDecor()` 重建。圆点用圆形 Canvas 贴图的 `THREE.Points` 渲染，性能好。
 - 两圈**可带缺口的旋转圆环**，**各自独立设置**（`chinaParams.ring1` 内圈 / `ring2` 外圈）：每圈有 `visible/color/opacity/width/gapCount/gap/speed`。
   - **等分缺口**：`gapCount` 表示"每 1/N 一个缺口"。实现上把圆环分成 `n` 段，每段是一段 `RingGeometry(inner, outer, …, thetaStart=i*(360/n), thetaLength=360/n-gap)`，段与段之间就是均匀分布的缺口。所以 `gapCount=3` → 每 1/3 一个缺口（共 3 个），`gapCount=4` → 每 1/4 一个缺口（共 4 个）。
   - `gap` 是**单个缺口的角度**；`width/opacity/color` 直接生效，`width/gapCount/gap` 改变时**重建**几何。
