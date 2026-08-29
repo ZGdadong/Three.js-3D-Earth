@@ -301,6 +301,85 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   const root = new THREE.Group();
   scene.add(root);
 
+  // ---- 层级切换过渡：缩小旧图 + 云层从中间散开 + 放大新图 ----
+  let mapCenter = new THREE.Vector3(0, 0, 0);
+  let mapScale = 1;
+  let transition = null; // { t, target:{features,levelName,adcode,name}, swapped }
+  const TRANS_SHRINK = 0.45; // 旧图缩小用时（秒）
+  const TRANS_GROW = 0.95; // 新图放大用时（秒）
+  const TRANS_MIN_SCALE = 0.22; // 过渡过程中最小的地图缩放
+
+  const CLOUD_FILES = ["./images/cloud1.png", "./images/cloud2.png", "./images/cloud3.png", "./images/cloud4.png"];
+  let cloudOverlay = null;
+  let cloudEls = [];
+
+  function easeOutCubic(x) {
+    return 1 - Math.pow(1 - x, 3);
+  }
+  // 改变整张地图的缩放（围绕地图中心缩放，保证视觉中心不动）
+  function setMapScale(s) {
+    mapScale = s;
+    root.scale.setScalar(s);
+    root.position.set(-mapCenter.x * s, 0, -mapCenter.z * s);
+  }
+  function ensureCloudOverlay() {
+    if (cloudOverlay) return cloudOverlay;
+    cloudOverlay = document.createElement("div");
+    cloudOverlay.id = "chinaCloudOverlay";
+    cloudOverlay.style.cssText =
+      "position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:6;";
+    document.body.appendChild(cloudOverlay);
+    return cloudOverlay;
+  }
+  // 生成云朵（同一种图片可多次出现），从屏幕中心向四周散开
+  function spawnClouds() {
+    const ov = ensureCloudOverlay();
+    ov.innerHTML = "";
+    cloudEls = [];
+    const count = 7;
+    for (let i = 0; i < count; i++) {
+      const el = document.createElement("div");
+      const img = CLOUD_FILES[i % CLOUD_FILES.length];
+      const size = 0.3 + Math.random() * 0.2; // 相对视口宽
+      el.style.cssText =
+        `position:absolute;left:50%;top:50%;width:${size * 100}vw;aspect-ratio:1.6;` +
+        `background-image:url('${img}');background-size:contain;background-repeat:no-repeat;` +
+        `opacity:0;transform:translate(-50%,-50%) scale(0.6);pointer-events:none;` +
+        `filter:drop-shadow(0 8px 24px rgba(120,200,255,.35));`;
+      ov.appendChild(el);
+      cloudEls.push({
+        el,
+        angle: Math.random() * Math.PI * 2,
+        distBase: 0.04 + Math.random() * 0.1,
+        maxDist: 0.26 + Math.random() * 0.24,
+      });
+    }
+  }
+  function hideClouds() {
+    if (cloudOverlay) cloudOverlay.innerHTML = "";
+    cloudEls = [];
+  }
+  // p: 整段过渡进度 0..1；云从中间向四周轻散开，中途最浓，尾段淡出
+  function updateClouds(p) {
+    const appear = Math.min(p / 0.3, 1); // 前 30% 淡入
+    const fade = p > 0.7 ? 1 - (p - 0.7) / 0.3 : 1; // 后 30% 淡出
+    const op = Math.max(0, Math.min(appear, fade)) * 0.95;
+    for (const c of cloudEls) {
+      const r = (c.distBase + (c.maxDist - c.distBase) * easeOutCubic(Math.min(p, 1))) * 100;
+      const x = Math.cos(c.angle) * r;
+      const y = Math.sin(c.angle) * r;
+      const s = 0.7 + p * 0.9;
+      c.el.style.transform = `translate(-50%,-50%) translate(${x}vw,${y}vh) scale(${s})`;
+      c.el.style.opacity = op;
+    }
+  }
+  // 开始一次层级切换：先缩小当前图，再从中间放云，最后放大 target 所示的新层级
+  function startTransition(target) {
+    if (!target) return;
+    transition = { t: 0, target, swapped: false };
+    spawnClouds();
+  }
+
   // ---- 地形贴图（山/河）：中国灰度地形（可着色）----
   const terrainTex = new THREE.TextureLoader().load("./images/china_terrain.png");
   terrainTex.colorSpace = THREE.SRGBColorSpace;
@@ -757,6 +836,8 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     });
 
     const center = bounds.getCenter(new THREE.Vector3());
+    mapCenter.copy(center);
+    root.scale.setScalar(1);
     root.position.set(-center.x, 0, -center.z);
     const finalBounds = new THREE.Box3().setFromObject(root);
     currentZMin = finalBounds.min.z;
@@ -795,15 +876,20 @@ export function createChinaMap({ container, rendererDom, width, height }) {
         showToast(t("china.noData").replace("{name}", name));
         return;
       }
-      buildLevel(features, "province", adcode, name);
+      startTransition({ features, levelName: "province", adcode, name });
     } catch (err) {
       showToast(t("china.noData").replace("{name}", name));
     }
   }
 
   async function goBack() {
-    if (level === "nation") return;
-    await ensureNation();
+    if (level === "nation" || transition) return;
+    try {
+      const features = await loadFeatures("100000");
+      startTransition({ features, levelName: "nation", adcode: "100000", name: t("china.nationName") });
+    } catch (err) {
+      showToast(t("china.noData").replace("{name}", ""));
+    }
   }
 
   function showToast(msg) {
@@ -866,7 +952,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   const graceDelay = 90; // ms，防抖：跨区域时稍作停留再切换，避免高频上下跳动
 
   function onPointerMove(ev) {
-    if (!active) return;
+    if (!active || transition) return;
     const g = pick(ev);
     updateTooltip(g, ev); // 工具提示即时跟随光标（显示当前区域名）
     clearTimeout(hoverGraceTimer);
@@ -883,7 +969,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     }
   }
   function onPointerUp(ev) {
-    if (!active || ev.button !== 0) return;
+    if (!active || transition || ev.button !== 0) return;
     const moved = Math.hypot(ev.clientX - downX, ev.clientY - downY);
     if (moved > 6 || Date.now() - downT > 500) return;
     if (clickTimer) {
@@ -927,6 +1013,11 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       rendererDom.addEventListener("pointerleave", onPointerLeave);
     } else {
       if (chinaGui) chinaGui.domElement.style.display = "none";
+      if (transition) {
+        hideClouds();
+        transition = null;
+        setMapScale(1);
+      }
       clearTimeout(hoverGraceTimer);
       document.body.classList.remove("china-mode");
       header.style.display = "none";
@@ -946,6 +1037,37 @@ export function createChinaMap({ container, rendererDom, width, height }) {
 
   function update(delta) {
     controls.update();
+
+    // ---- 层级切换过渡：缩小旧图 → 云从中间散开 → 放大新图 ----
+    if (transition) {
+      transition.t += Math.min(delta, 0.05); // 钳制单帧步长，避免掉帧时跳过缩小段
+      const t = transition.t;
+      updateClouds(t / (TRANS_SHRINK + TRANS_GROW));
+      if (t < TRANS_SHRINK) {
+        // 缩小当前图（围绕中心）
+        const k = easeOutCubic(t / TRANS_SHRINK);
+        setMapScale(1 - k * (1 - TRANS_MIN_SCALE));
+      } else {
+        // 一次性切换到目标层级，并从小尺寸开始
+        if (!transition.swapped) {
+          transition.swapped = true;
+          buildLevel(
+            transition.target.features,
+            transition.target.levelName,
+            transition.target.adcode,
+            transition.target.name,
+          );
+          setMapScale(TRANS_MIN_SCALE);
+        }
+        const gt = Math.min((t - TRANS_SHRINK) / TRANS_GROW, 1);
+        setMapScale(TRANS_MIN_SCALE + (1 - TRANS_MIN_SCALE) * easeOutCubic(gt));
+        if (gt >= 1) {
+          setMapScale(1);
+          hideClouds();
+          transition = null;
+        }
+      }
+    }
 
     // 平滑上浮 / 回落：约 1 秒逼近目标高度（指数缓动）
     const ease = 1 - Math.exp(-3.2 * Math.min(delta, 0.1));
