@@ -425,6 +425,7 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 
 ### 12.5 配置
 - **分组设置**：页面左侧「✈️ 飞线设置」表格，每行 = 起点城市(下拉) + 终点城市(下拉) + 增加/删除；「＋」复制本行起点以给同一组加终点，「－」删除本行，「＋新增分组」加一行。所有行按**起点相同**归成一组（`{source, targets:[...]}`），修改即 `rebuild()->flightLines.rebuild(groups, arcHeight)`。
+  
   > 内部数据 `flightRows=[{source,target}]`，分组由 `rowGroups()` 按 source 聚合。
 - **样式**（`flightLines.update(delta, elapsed, style)` 每帧传入）：
   飞线 `flightLineColor / flightLineOpacity / flightCometLength / flightCometWidth / flightCometSize / flightSpeed`；
@@ -456,9 +457,6 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 - **面板刷新无效**：用了 `gui.controllers` 而没用 `gui.controllersRecursive()`。
 - **法线贴图看不到效果**：没调 `normalStrength`（=0 会关闭），或没 `computeTangents()`。
 - **飞线在地球背面也显示**：飞线材质不要设 `depthTest:false`，否则会被"透视"画出来；应设 `depthTest:true` 让地球遮挡背面飞线。
-```
-
----
 
 ## 14. 中国地图（省市下钻 + 地形 + 扫描）
 
@@ -500,6 +498,7 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 - **单击**（判定非拖拽后 300ms）：下钻进该省；**双击**：返回上一级；也可点左上角「← 返回」。
 - 点击拾取时关闭边界线/标签的 `raycast`（`line.raycast = () => {}`），只命中区域网格。
 - **层级切换过渡动画**：单击下钻或点「← 返回」时不再是瞬切，而是走 `startTransition()` 三段：**① 缩小当前图**（`setMapScale` 围绕地图中心缩放，缩放时同步补偿 `root.position` 以保持中心不动）→ **② 云带从右往左滑过**（`#chinaCloudOverlay` 全屏层，内含一条比视口更宽的 `#chinaCloudStrip` 云带，把 `cloud1-4.png` 排成 6 行 × 12 列（约 72 朵）铺满屏幕，同一张云图可出现多次；过渡时整条带子 `translateX(-slide)` 线性向左滑动、头尾淡入淡出）→ **③ 放大目标层级**（新图从 `TRANS_MIN_SCALE=0.22` 长回 1，云随之淡出）。单帧步长用 `Math.min(delta,0.05)` 钳制，避免掉帧时跳过缩小段；过渡期间禁用点击/悬停交互。
+  
   > 云图本身带透明边距（图 200×100 只有中心约 75% 是云），所以每朵云用 `background-size:100%`（不放大，云完整留在格子里、四周留透明边，软边**不会被格子裁成直线**）+ 居中摆放；再把 6 行 × 12 列（≈72 朵，约原密度 3 倍）的基准位置加上**大幅随机抖动**，让云看起来凌乱自然而非规整表格，并靠重叠盖住屏幕。
 
 ### 14.7 多语言
@@ -543,11 +542,13 @@ Three.js 的 `WebGLRenderer` 默认 `preserveDrawingBuffer: false`。此时 `can
    ```js
    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
    ```
+   
 2. **拿到视频轨后逐帧 `requestFrame()`**（对 WebGL 是确定性触发，不再依赖浏览器自动捕获）。在 `animate()` 的两种渲染分支后，各加一次：
    ```js
    renderer.render(scene, camera);
    captureRecordFrame(); // requestFrame() 把当前帧推进录制流
    ```
+
    ```js
    // 每次开始时取视频轨
    recordTrack = stream.getVideoTracks()[0] || null;
@@ -555,7 +556,7 @@ Three.js 的 `WebGLRenderer` 默认 `preserveDrawingBuffer: false`。此时 `can
      if (!recordTrack || !mediaRecorder || mediaRecorder.state !== "recording") return;
      try { if (recordTrack.requestFrame) recordTrack.requestFrame(); } catch (e) {}
    }
-   ```
+```
 
 ### 15.3 边界与说明
 - 只录画布、**不含** lil-gui 面板 / 提示 / 按钮等 DOM，画质更纯净。
