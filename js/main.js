@@ -15,6 +15,9 @@
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import GUI from "lil-gui";
 import { FlightLines, CITIES as FLIGHT_CITIES } from "./flightlines.js";
 import { createChinaMap } from "./chinaMap.js";
@@ -178,6 +181,12 @@ const params = {
   earthChinaLineColor: "#ffd24a", // 线颜色（金色）
   earthChinaLineOpacity: 0.75, // 线透明度
   earthChinaHeadColor: "#fff6d8", // 线头颜色（亮头）
+  earthChinaCometSpeed: 1, // 线头速度（倍率）
+  earthChinaCometSize: 6, // 线头大小（像素基数）
+  earthChinaCometOpacity: 0.95, // 线头透明度
+  earthChinaCometLength: 300, // 线尾长度（点数，越大拖尾越长）
+  earthChinaBlinkSpeed: 4, // 静态线闪烁速度
+  earthChinaBlinkAmount: 0.45, // 静态线闪烁强度（0=不闪）
   flightGroupsJson: JSON.stringify(DEFAULT_FLIGHT_GROUPS, null, 2), // 可编辑的分组数据
 };
 
@@ -204,6 +213,8 @@ const PARAM_KEYS = [
   "flightCometSize", "flightSpeed", "flightTrackWidth", "flightTrackColor", "flightTrackOpacity",
   "waveColor", "waveOpacity", "waveHeight", "waveRadius", "waveSpeed", "waveBright",
   "earthChinaLineColor", "earthChinaLineOpacity", "earthChinaHeadColor",
+  "earthChinaCometSpeed", "earthChinaCometSize", "earthChinaCometOpacity", "earthChinaCometLength",
+  "earthChinaBlinkSpeed", "earthChinaBlinkAmount",
   "flightGroupsJson",
 ];
 const DEFAULT_PARAMS = { ...params }; // 默认值快照（此时 params 仅含数据项）
@@ -500,12 +511,15 @@ const chinaHitMat = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
   colorWrite: false,
 });
-// 金色静态轮廓线
-const chinaLineMat = new THREE.LineBasicMaterial({
+// 金色静态轮廓线（Line2 粗线，清晰可见）
+const chinaLineMat = new LineMaterial({
+  color: params.earthChinaLineColor,
+  linewidth: 2.5, // 像素宽
   transparent: true,
-  blending: THREE.AdditiveBlending,
+  opacity: params.earthChinaLineOpacity,
   depthWrite: false,
 });
+chinaLineMat.resolution.set(window.innerWidth, window.innerHeight);
 // 流动亮头彗星（飞线风格：只显示 uTime 附近的一段点，头部亮、尾部渐变）
 const CHINA_COMET_VERT = /* glsl */ `
   attribute float aIndex;
@@ -537,20 +551,24 @@ const CHINA_COMET_FRAG = /* glsl */ `
     if (vSize <= 0.0) { gl_FragColor = vec4(0.0); return; }
     vec2 c = gl_PointCoord - 0.5;
     float d = length(c);
-    float alpha = smoothstep(0.5, 0.0, d) * uOpacity; // 圆形软点 * 透明度
+    float alpha = smoothstep(0.5, 0.0, d) * uOpacity;
+    // 拖尾：头部亮，尾部渐隐（越小越淡）
+    float fade = 0.1 + 0.9 * pow(clamp(vHead, 0.0, 1.0), 1.4);
+    alpha *= fade;
     vec3 col = mix(uColor, uHeadColor, pow(clamp(vHead, 0.0, 1.0), 1.6)); // 尾部线色 -> 头部亮色
     gl_FragColor = vec4(col, alpha);
   }
 `;
+const COMET_SAMPLES = 6; // 每条边采样份数，让拖尾连续
 const chinaCometMat = new THREE.ShaderMaterial({
   uniforms: {
     uTime: { value: 0 },
-    uLength: { value: 42 },
-    uWidth: { value: 12 },
-    uSize: { value: 5 },
+    uLength: { value: params.earthChinaCometLength },
+    uWidth: { value: 14 },
+    uSize: { value: params.earthChinaCometSize },
     uColor: { value: new THREE.Color(params.earthChinaLineColor) },
     uHeadColor: { value: new THREE.Color(params.earthChinaHeadColor) },
-    uOpacity: { value: params.earthChinaLineOpacity },
+    uOpacity: { value: params.earthChinaCometOpacity },
   },
   vertexShader: CHINA_COMET_VERT,
   fragmentShader: CHINA_COMET_FRAG,
@@ -602,10 +620,16 @@ async function buildChinaRegionOnEarth() {
           const q = pts[(i + 1) % pts.length];
           lineVerts.push(p.x, p.y, p.z, q.x, q.y, q.z);
         }
-        // 流动彗星点（每个顶点一个点，带 aIndex）
+        // 流动彗星点（每条边采样多份，让拖尾连续，带 aIndex）
         for (let i = 0; i < pts.length; i++) {
-          cometPts.push(pts[i].x, pts[i].y, pts[i].z);
-          cometIdx.push(cometPts.length / 3 - 1);
+          const a = pts[i];
+          const b = pts[(i + 1) % pts.length];
+          for (let k = 0; k < COMET_SAMPLES; k++) {
+            const t = k / COMET_SAMPLES;
+            const v = a.clone().lerp(b, t).normalize().multiplyScalar(R);
+            cometPts.push(v.x, v.y, v.z);
+            cometIdx.push(cometPts.length / 3 - 1);
+          }
         }
         // 不可见拾取网格（仅外环，用于悬停/点击检测）
         if (ri === 0) {
@@ -622,10 +646,10 @@ async function buildChinaRegionOnEarth() {
   fg.computeVertexNormals();
   chinaFillMesh = new THREE.Mesh(fg, chinaHitMat);
   chinaOnEarth.add(chinaFillMesh);
-  // 金色静态轮廓线
-  const lg = new THREE.BufferGeometry();
-  lg.setAttribute("position", new THREE.Float32BufferAttribute(lineVerts, 3));
-  chinaOnEarth.add(new THREE.LineSegments(lg, chinaLineMat));
+  // 金色静态轮廓线（Line2 胖线）
+  const lg2 = new LineGeometry();
+  lg2.setPositions(lineVerts);
+  chinaOnEarth.add(new Line2(lg2, chinaLineMat));
   // 流动彗星
   const cg = new THREE.BufferGeometry();
   cg.setAttribute("position", new THREE.Float32BufferAttribute(cometPts, 3));
@@ -636,22 +660,29 @@ async function buildChinaRegionOnEarth() {
 }
 buildChinaRegionOnEarth();
 
-// 由参数 + 悬停状态刷新材质（线颜色/透明度/线头颜色）
-function refreshChinaLineParams() {
+// 由参数 + 悬停状态刷新材质（线颜色/透明度/线头颜色/大小/速度/闪烁）
+function refreshChinaLineParams(elapsed) {
   const boost = chinaOnEarthHover ? 1.35 : 1; // 悬停时略变亮
+  // 静态金线：透明度被闪烁调制
+  const blink = 1 + Math.sin((elapsed || 0) * params.earthChinaBlinkSpeed) * params.earthChinaBlinkAmount;
+  chinaLineMat.resolution.set(window.innerWidth, window.innerHeight);
   chinaLineMat.color.set(params.earthChinaLineColor);
-  chinaLineMat.opacity = Math.min(1, params.earthChinaLineOpacity * boost);
+  chinaLineMat.opacity = Math.min(1, params.earthChinaLineOpacity * boost * Math.max(0, blink));
+  // 流动彗星
   chinaCometMat.uniforms.uColor.value.set(params.earthChinaLineColor);
   chinaCometMat.uniforms.uHeadColor.value.set(params.earthChinaHeadColor);
-  chinaCometMat.uniforms.uOpacity.value = Math.min(1, params.earthChinaLineOpacity * boost);
+  chinaCometMat.uniforms.uOpacity.value = params.earthChinaCometOpacity * boost;
+  chinaCometMat.uniforms.uSize.value = params.earthChinaCometSize;
+  chinaCometMat.uniforms.uLength.value = params.earthChinaCometLength;
 }
-// 每帧推进彗星（约 9 秒走完一圈）
-function advanceChinaComet(delta) {
+// 每帧推进彗星（速度 1 时约 22 秒走完一圈，可调）
+function advanceChinaComet(delta, elapsed) {
   if (!chinaComet || chinaCometCount <= 0) return;
-  chinaCometTime += delta * (chinaCometCount / 9);
+  const traversal = 22 / Math.max(0.05, params.earthChinaCometSpeed);
+  chinaCometTime += delta * (chinaCometCount / traversal);
   if (chinaCometTime >= chinaCometCount) chinaCometTime -= chinaCometCount;
   chinaCometMat.uniforms.uTime.value = chinaCometTime;
-  refreshChinaLineParams();
+  refreshChinaLineParams(elapsed);
 }
 
 // 地球模式下的中国区域交互：悬停高亮 + 点击切入中国地图（云过渡）
@@ -1297,6 +1328,12 @@ function buildGui() {
   fChina.addColor(params, "earthChinaLineColor").name(t("param.chinaLineColor"));
   fChina.add(params, "earthChinaLineOpacity", 0, 1, 0.01).name(t("param.chinaLineOpacity"));
   fChina.addColor(params, "earthChinaHeadColor").name(t("param.chinaLineHeadColor"));
+  fChina.add(params, "earthChinaCometSpeed", 0.1, 4, 0.05).name(t("param.chinaLineSpeed"));
+  fChina.add(params, "earthChinaCometSize", 1, 20, 0.5).name(t("param.chinaLineSize"));
+  fChina.add(params, "earthChinaCometOpacity", 0, 1, 0.01).name(t("param.chinaLineHeadOpacity"));
+  fChina.add(params, "earthChinaCometLength", 50, 2000, 25).name(t("param.chinaLineLength"));
+  fChina.add(params, "earthChinaBlinkSpeed", 0, 20, 0.5).name(t("param.chinaLineBlinkSpeed"));
+  fChina.add(params, "earthChinaBlinkAmount", 0, 1, 0.01).name(t("param.chinaLineBlinkAmount"));
 
   // 折叠部分分组，让面板更紧凑，保存按钮一眼可见（点击可展开）
   fEarth.close();
@@ -1595,7 +1632,7 @@ function animate() {
   });
 
   controls.update();
-  advanceChinaComet(delta); // 推进中国轮廓的流动亮头
+  advanceChinaComet(delta, elapsed); // 推进中国轮廓的流动亮头 + 静态线闪烁
   renderer.render(scene, camera);
 }
 animate();
