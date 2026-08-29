@@ -391,6 +391,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   let mapCenter = new THREE.Vector3(0, 0, 0);
   let mapScale = 1;
   let transition = null; // { t, target:{features,levelName,adcode,name}, swapped }
+  let cloudWipe = null; // 独立云过渡（供地球→中国地图用）：{ t, onCover, covered }
   const TRANS_SHRINK = 0.45; // 旧图缩小用时（秒）
   const TRANS_GROW = 0.95; // 新图放大用时（秒）
   const TRANS_MIN_SCALE = 0.22; // 过渡过程中最小的地图缩放
@@ -477,6 +478,30 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     if (!target) return;
     transition = { t: 0, target, swapped: false };
     spawnClouds();
+  }
+
+  // 独立云过渡：地球→中国地图时，播放云带右→左铺满屏幕，
+  // 云盖住屏幕时调用 onCover（此处切换模式），随后云淡出露出新画面。
+  const CLOUD_WIPE_DUR = 1.25; // 秒
+  function playCloudWipe(onCover) {
+    spawnClouds();
+    cloudWipe = { t: 0, onCover, covered: false };
+  }
+  // 独立推进云过渡（供 main.js 每帧调用，不依赖 china 模式）。返回是否仍在播放。
+  function updateCloudWipe(delta) {
+    if (!cloudWipe) return false;
+    cloudWipe.t += Math.min(delta, 0.05);
+    const p = Math.min(cloudWipe.t / CLOUD_WIPE_DUR, 1);
+    updateClouds(p);
+    if (!cloudWipe.covered && p >= 0.5) {
+      cloudWipe.covered = true;
+      if (cloudWipe.onCover) cloudWipe.onCover();
+    }
+    if (p >= 1) {
+      hideClouds();
+      cloudWipe = null;
+    }
+    return true;
   }
 
   // ---- 地形贴图（山/河）：中国灰度地形（可着色）----
@@ -1408,5 +1433,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     dispose,
     refreshText,
     resetNation: ensureNation,
+    playCloudWipe,
+    updateCloudWipe,
   };
 }

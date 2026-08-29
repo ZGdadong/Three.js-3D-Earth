@@ -508,6 +508,7 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 
 ### 14.8 视图切换与面板
 - `main.js` 里 `let mode = 'earth'`；`animate()` 按 `mode` 分支渲染 `earth` 或 `chinaMap` 场景；切换时**只启用对应一组 OrbitControls**。
+- **地球上的中国**：`buildChinaRegionOnEarth()` 用全国 GeoJSON 把中国**省界 + 半透明填充**贴合到地球球面上（扇形三角化 + 递归细分投影到球面，`subdivTriangle`），挂在 `earth` 下随地球自转。**悬停中国**会高亮（填充变亮）并浮出"中国"提示；**点击中国**会触发 `chinaMap.playCloudWipe()` 的**云带右→左过渡**，云盖住屏幕时回调 `setMode('china')` 切到中国地图，云再淡出露出省份图（`updateCloudWipe` 由 `main.js` 的 `animate` 每帧推进，不依赖模式）。
 - 进入中国地图时用 JS 隐藏地球 lil-gui、显示中国地图的 `.china-gui` 面板（文件夹：显示 / 旋转圆环 / 扫描能量波 / 底部栅格 / 💾 参数），离开再切回。
 - 地球参数面板也显式定位到**右上角语言条下方**（`top:70px; right:12px; z-index:15`），语言条 `z-index:30` 始终置顶，避免被面板遮住、找不到多语言切换。
 - 中国地图参数同样支持**保存（浏览器记忆）/ 载入 / 导入 JSON / 恢复默认 / 导出 JSON**（与地球一致，见 §9）：`china_map_params_v1` 存 `localStorage`，`CHINA_PARAM_KEYS` 列出持久化键。嵌套的 `ring1/ring2` 采用**就地改属性**而非替换对象（`assignChinaParams`），避免 lil-gui 控件因绑定旧对象引用而失效；`depth/bevel` 载入/恢复后会 `rebuildLevel()` 重绘。

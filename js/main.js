@@ -475,6 +475,164 @@ const earth = new THREE.Mesh(earthGeometry, earthMaterial);
 scene.add(earth);
 
 // ---------------------------------------------------------------------------
+// 在地球上高亮中国区域：边界线 + 半透明填充（细分贴合球面）。
+// 悬停中国 -> 高亮 + 提示；点击中国 -> 云过渡动画 -> 切入中国地图。
+// ---------------------------------------------------------------------------
+const chinaOnEarth = new THREE.Group();
+earth.add(chinaOnEarth);
+const earthChinaFillMat = new THREE.MeshBasicMaterial({
+  color: 0x3fd0ff,
+  transparent: true,
+  opacity: 0.32,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+const earthChinaLineMat = new THREE.LineBasicMaterial({
+  color: 0xbfe8ff,
+  transparent: true,
+  opacity: 0.7,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+let chinaFillMesh = null;
+let chinaLineMat = earthChinaLineMat;
+
+// 把三角面细分并投影到球面，让填充贴合地球曲面（避免大三角被切进球体内部）
+function subdivTriangle(a, b, c, depth, R, out) {
+  if (depth <= 0) {
+    out.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    return;
+  }
+  const ab = a.clone().add(b).normalize().multiplyScalar(R);
+  const bc = b.clone().add(c).normalize().multiplyScalar(R);
+  const ca = c.clone().add(a).normalize().multiplyScalar(R);
+  subdivTriangle(a, ab, ca, depth - 1, R, out);
+  subdivTriangle(ab, b, bc, depth - 1, R, out);
+  subdivTriangle(ca, bc, c, depth - 1, R, out);
+  subdivTriangle(ab, bc, ca, depth - 1, R, out);
+}
+function eachGeoPolygon(geo, cb) {
+  if (geo.type === "Polygon") cb(geo.coordinates);
+  else if (geo.type === "MultiPolygon") geo.coordinates.forEach(cb);
+}
+async function buildChinaRegionOnEarth() {
+  const resp = await fetch("./data/geojson/100000_full.json");
+  const json = await resp.json();
+  const R = EARTH_RADIUS * 1.004;
+  const fillVerts = [];
+  const lineVerts = [];
+  json.features.forEach((f) => {
+    if (!f.properties || f.properties.adcode == null) return;
+    if (String(f.properties.adcode).indexOf("_JD") !== -1) return; // 跳过九段线
+    eachGeoPolygon(f.geometry, (rings) => {
+      rings.forEach((ring, ri) => {
+        if (ring.length < 3) return;
+        const pts = ring.map(([lon, lat]) => latLonToVec3(lat, lon, R));
+        // 边界线（首尾闭合）
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[i];
+          const q = pts[(i + 1) % pts.length];
+          lineVerts.push(p.x, p.y, p.z, q.x, q.y, q.z);
+        }
+        // 只对外环做半透明填充（质心扇形 + 细分投影），孔洞有线即可
+        if (ri === 0) {
+          const centroid = pts.reduce((acc, p) => acc.add(p), new THREE.Vector3()).normalize().multiplyScalar(R);
+          for (let i = 0; i < pts.length; i++) {
+            subdivTriangle(pts[i], pts[(i + 1) % pts.length], centroid, 2, R, fillVerts);
+          }
+        }
+      });
+    });
+  });
+  const fg = new THREE.BufferGeometry();
+  fg.setAttribute("position", new THREE.Float32BufferAttribute(fillVerts, 3));
+  fg.computeVertexNormals();
+  chinaFillMesh = new THREE.Mesh(fg, earthChinaFillMat);
+  chinaOnEarth.add(chinaFillMesh);
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute("position", new THREE.Float32BufferAttribute(lineVerts, 3));
+  const lines = new THREE.LineSegments(lg, chinaLineMat);
+  chinaOnEarth.add(lines);
+}
+buildChinaRegionOnEarth();
+
+// 地球模式下的中国区域交互：悬停高亮 + 点击切入中国地图（云过渡）
+const earthChinaRay = new THREE.Raycaster();
+earthChinaRay.params.Line = { threshold: 0.03 };
+const earthChinaMouse = new THREE.Vector2();
+const earthChinaTip = document.createElement("div");
+earthChinaTip.id = "earthChinaTip";
+Object.assign(earthChinaTip.style, {
+  position: "fixed",
+  zIndex: "40",
+  pointerEvents: "none",
+  background: "rgba(6,16,30,0.92)",
+  border: "1px solid rgba(120,180,255,0.4)",
+  color: "#dff1ff",
+  padding: "5px 12px",
+  borderRadius: "6px",
+  fontSize: "13px",
+  display: "none",
+  left: "0",
+  top: "0",
+});
+document.body.appendChild(earthChinaTip);
+let chinaOnEarthHover = false;
+let earthChinaDown = { x: 0, y: 0, t: 0 };
+let earthChinaLock = false; // 一次点击流程中防止重复触发
+
+function setEarthChinaHover(on) {
+  if (!chinaFillMesh) return;
+  if (on === chinaOnEarthHover) return;
+  chinaOnEarthHover = on;
+  earthChinaFillMat.opacity = on ? 0.6 : 0.32;
+  chinaLineMat.opacity = on ? 1 : 0.7;
+  earthChinaTip.style.display = on ? "block" : "none";
+  if (on) earthChinaTip.textContent = t("china.nationName") || "中国";
+}
+
+function onEarthPointerMove(ev) {
+  if (mode !== "earth") return;
+  if (!chinaFillMesh) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  earthChinaMouse.set(
+    ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+    -((ev.clientY - rect.top) / rect.height) * 2 + 1,
+  );
+  earthChinaRay.setFromCamera(earthChinaMouse, camera);
+  const hit = earthChinaRay.intersectObject(chinaFillMesh, false).length > 0;
+  setEarthChinaHover(hit);
+  if (hit) {
+    earthChinaTip.style.left = ev.clientX + 14 + "px";
+    earthChinaTip.style.top = ev.clientY + 14 + "px";
+  }
+}
+function onEarthPointerDown(ev) {
+  if (mode !== "earth" || ev.button !== 0) return;
+  earthChinaDown = { x: ev.clientX, y: ev.clientY, t: Date.now() };
+}
+function onEarthPointerUp(ev) {
+  if (mode !== "earth" || ev.button !== 0 || earthChinaLock) return;
+  const moved = Math.hypot(ev.clientX - earthChinaDown.x, ev.clientY - earthChinaDown.y);
+  if (moved > 6 || Date.now() - earthChinaDown.t > 500) return;
+  if (!chinaOnEarthHover) return;
+  earthChinaLock = true;
+  setEarthChinaHover(false);
+  earthChinaTip.style.display = "none";
+  // 云过渡：云盖住屏幕时切换模式到中国地图，云再淡出露出中国地图
+  chinaMap.playCloudWipe(() => {
+    setMode("china");
+    setTimeout(() => {
+      earthChinaLock = false;
+    }, 1400);
+  });
+}
+renderer.domElement.addEventListener("pointermove", onEarthPointerMove);
+renderer.domElement.addEventListener("pointerdown", onEarthPointerDown);
+renderer.domElement.addEventListener("pointerup", onEarthPointerUp);
+
+// ---------------------------------------------------------------------------
 // 云层
 // ---------------------------------------------------------------------------
 const cloudsMaterial = new THREE.MeshPhongMaterial({
@@ -1210,6 +1368,9 @@ function animate() {
 
   const delta = clock.getDelta();
   const elapsed = clock.getElapsedTime();
+
+  // 独立云过渡（地球→中国地图）：每帧推进，不依赖当前模式
+  chinaMap.updateCloudWipe(delta);
 
   // --- 中国地图模式：渲染独立场景，跳过地球逻辑 ---
   if (mode === "china") {
