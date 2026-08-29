@@ -29,7 +29,8 @@ A **realistic 3D Earth** built with **Three.js**, featuring dynamic **day/night 
 - **Parameter panel**: `lil-gui` adjusts almost all parameters.
 - **Parameter persistence**: saved to browser `localStorage` and restored on refresh; supports export/import JSON and reset to defaults.
 - **Multi-language (i18n)**: the whole UI is localized (text / lil-gui panel / city markers / flight table); one JSON per language under `Languages/`, switch instantly from the top-right dropdown, and missing keys fall back to Chinese.
-- **China map · province drill-down**: switch between "Earth" and "China map" with one button at the top-right; GeoJSON-extruded provinces using a custom **gradient + glow** material (deep navy → cyan top), glowing cyan boundary lines; **hover to float up + highlight and show the name**, single-click to drill into a province (sub-regions), double-click / the top-left "Back" button to return to the whole country. The floor is a glowing gradient disc + grid + two rotating rings with a configurable gap, and the whole map has a bottom-to-top **scan energy wave**. Fully offline, bundled under `data/geojson/`; adjust glow / float / ring color-opacity-width-gap / scan wave from the right-side lil-gui panel.
+- **China map · province drill-down**: switch between "Earth" and "China map" with one button at the top-right, or **click China directly on the Earth** — hover highlights China and shows a "中国" tooltip, and clicking transitions into the China map with a cloud wipe. GeoJSON-extruded provinces using a custom **gradient + glow** material (deep navy → cyan top), glowing cyan boundary lines; **hover to float up + highlight and show the name**, single-click to drill into a province (sub-regions), double-click / the top-left "Back" button to return to the whole country. The floor is a glowing gradient disc + grid + two rotating rings with a configurable gap, and the whole map has a bottom-to-top **scan energy wave**. Fully offline, bundled under `data/geojson/`; adjust glow / float / ring color-opacity-width-gap / scan wave from the right-side lil-gui panel.
+- **Canvas recording**: the "🎬 Record" button at the bottom-right records the WebGL canvas to **WebM/VP9** video (visually lossless + low size), with selectable quality (High / Balanced / Small); stop and download with one click. Works in both the Earth and China map views.
 
 ---
 
@@ -95,7 +96,9 @@ Then open **<http://127.0.0.1:8080/index.html>**.
 | Left-drag | Rotate view |
 | Scroll wheel | Zoom |
 | Right-drag | Pan |
+| Click China on the Earth | Hover highlights China and shows "中国"; click transitions into the China map with a cloud wipe |
 | Right-side lil-gui panel | Adjust all parameters live |
+| "🎬 Record / ⏹ Stop" (bottom-right) | Start/stop the canvas recording; auto-downloads a WebM video on stop |
 
 ---
 
