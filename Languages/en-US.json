@@ -47,6 +47,7 @@
     "param.chinaLineLength": "Trail length",
     "param.chinaLineBlinkSpeed": "Blink speed",
     "param.chinaLineBlinkAmount": "Blink amount",
+    "param.chinaLineMinSpan": "Min span (deg)",
     "param.timePreset": "Time preset",
     "preset.auto": "Auto",
     "preset.noon": "Noon",

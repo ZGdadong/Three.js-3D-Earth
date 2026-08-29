@@ -47,6 +47,7 @@
     "param.chinaLineLength": "线尾长度(拖尾)",
     "param.chinaLineBlinkSpeed": "闪烁速度",
     "param.chinaLineBlinkAmount": "闪烁强度",
+    "param.chinaLineMinSpan": "轮廓最小尺寸(度)",
     "param.timePreset": "时段预设",
     "preset.auto": "自动",
     "preset.noon": "正午",

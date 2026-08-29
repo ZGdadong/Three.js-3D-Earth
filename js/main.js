@@ -187,6 +187,7 @@ const params = {
   earthChinaCometLength: 300, // 线尾长度（点数，越大拖尾越长）
   earthChinaBlinkSpeed: 4, // 静态线闪烁速度
   earthChinaBlinkAmount: 0.45, // 静态线闪烁强度（0=不闪）
+  earthChinaMinSpan: 0.4, // 轮廓最小尺寸（度）：太小的环(如南沙微型岛礁)不画线, 避免蜘蛛网
   flightGroupsJson: JSON.stringify(DEFAULT_FLIGHT_GROUPS, null, 2), // 可编辑的分组数据
 };
 
@@ -214,7 +215,7 @@ const PARAM_KEYS = [
   "waveColor", "waveOpacity", "waveHeight", "waveRadius", "waveSpeed", "waveBright",
   "earthChinaLineColor", "earthChinaLineOpacity", "earthChinaHeadColor",
   "earthChinaCometSpeed", "earthChinaCometSize", "earthChinaCometOpacity", "earthChinaCometLength",
-  "earthChinaBlinkSpeed", "earthChinaBlinkAmount",
+  "earthChinaBlinkSpeed", "earthChinaBlinkAmount", "earthChinaMinSpan",
   "flightGroupsJson",
 ];
 const DEFAULT_PARAMS = { ...params }; // 默认值快照（此时 params 仅含数据项）
@@ -599,6 +600,17 @@ function eachGeoPolygon(geo, cb) {
   if (geo.type === "Polygon") cb(geo.coordinates);
   else if (geo.type === "MultiPolygon") geo.coordinates.forEach(cb);
 }
+// 环在经纬度上的最大跨度（度），用于过滤太小的岛屿环
+function ringSpan(ring) {
+  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const [lon, lat] of ring) {
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return Math.max(maxLon - minLon, maxLat - minLat);
+}
 async function buildChinaRegionOnEarth() {
   const resp = await fetch("./data/geojson/100000_full.json");
   const json = await resp.json();
@@ -614,24 +626,28 @@ async function buildChinaRegionOnEarth() {
       rings.forEach((ring, ri) => {
         if (ring.length < 3) return;
         const pts = ring.map(([lon, lat]) => latLonToVec3(lat, lon, R));
-        // 金色静态轮廓线（首尾闭合）
-        for (let i = 0; i < pts.length; i++) {
-          const p = pts[i];
-          const q = pts[(i + 1) % pts.length];
-          lineVerts.push(p.x, p.y, p.z, q.x, q.y, q.z);
-        }
-        // 流动彗星点（每条边采样多份，让拖尾连续，带 aIndex）
-        for (let i = 0; i < pts.length; i++) {
-          const a = pts[i];
-          const b = pts[(i + 1) % pts.length];
-          for (let k = 0; k < COMET_SAMPLES; k++) {
-            const t = k / COMET_SAMPLES;
-            const v = a.clone().lerp(b, t).normalize().multiplyScalar(R);
-            cometPts.push(v.x, v.y, v.z);
-            cometIdx.push(cometPts.length / 3 - 1);
+        // 只对足够大的环画金色轮廓线/拖尾（太小如南沙微型岛礁会变成“蜘蛛网”）
+        const span = ringSpan(ring);
+        if (span >= params.earthChinaMinSpan) {
+          // 金色静态轮廓线（首尾闭合）
+          for (let i = 0; i < pts.length; i++) {
+            const p = pts[i];
+            const q = pts[(i + 1) % pts.length];
+            lineVerts.push(p.x, p.y, p.z, q.x, q.y, q.z);
+          }
+          // 流动彗星点（每条边采样多份，让拖尾连续，带 aIndex）
+          for (let i = 0; i < pts.length; i++) {
+            const a = pts[i];
+            const b = pts[(i + 1) % pts.length];
+            for (let k = 0; k < COMET_SAMPLES; k++) {
+              const t = k / COMET_SAMPLES;
+              const v = a.clone().lerp(b, t).normalize().multiplyScalar(R);
+              cometPts.push(v.x, v.y, v.z);
+              cometIdx.push(cometPts.length / 3 - 1);
+            }
           }
         }
-        // 不可见拾取网格（仅外环，用于悬停/点击检测）
+        // 不可见拾取网格（仅外环，用于悬停/点击检测）——保留全部环以保证覆盖
         if (ri === 0) {
           const centroid = pts.reduce((acc, p) => acc.add(p), new THREE.Vector3()).normalize().multiplyScalar(R);
           for (let i = 0; i < pts.length; i++) {
@@ -1334,6 +1350,7 @@ function buildGui() {
   fChina.add(params, "earthChinaCometLength", 50, 2000, 25).name(t("param.chinaLineLength"));
   fChina.add(params, "earthChinaBlinkSpeed", 0, 20, 0.5).name(t("param.chinaLineBlinkSpeed"));
   fChina.add(params, "earthChinaBlinkAmount", 0, 1, 0.01).name(t("param.chinaLineBlinkAmount"));
+  fChina.add(params, "earthChinaMinSpan", 0, 3, 0.05).name(t("param.chinaLineMinSpan"));
 
   // 折叠部分分组，让面板更紧凑，保存按钮一眼可见（点击可展开）
   fEarth.close();
