@@ -510,6 +510,7 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 - `main.js` 里 `let mode = 'earth'`；`animate()` 按 `mode` 分支渲染 `earth` 或 `chinaMap` 场景；切换时**只启用对应一组 OrbitControls**。
 - **地球上的中国**：`buildChinaRegionOnEarth()` 用全国 GeoJSON 把中国**轮廓**贴合到地球球面上：一条**金色静态轮廓线**（`chinaLineMat`）+ 一个**沿轮廓流动的亮头彗星**（`THREE.Points` + `aIndex/uTime` 着色器，风格类似飞线，头部用 `uHeadColor` 亮色、尾部渐隐为线色）。轮廓线颜色/透明度、线头颜色在「🌏 中国轮廓」面板可调（`earthChinaLineColor/Opacity/HeadColor`）。另用一个**不可见拾取网格**（`chinaHitMat`，`colorWrite:false`）覆盖中国区域用于悬停/点击检测。**悬停中国**高亮（线变亮）并浮出"中国"提示；**点击中国**触发 `chinaMap.playCloudWipe()` 的**云带右→左过渡**，云盖住屏幕时回调 `setMode('china')` 切到中国地图，云再淡出露出省份图（`updateCloudWipe` 由 `main.js` 的 `animate` 每帧推进，不依赖模式）。
 - 进入中国地图时用 JS 隐藏地球 lil-gui、显示中国地图的 `.china-gui` 面板（文件夹：显示 / 旋转圆环 / 扫描能量波 / 底部栅格 / 💾 参数），离开再切回。
+- 中国地图顶部 header 除「← 返回」（上级/全国）外，新增 **「🌍 返回地球」** 按钮：点击触发 `chinaMap.playCloudWipe(() => setMode('earth'))`，云过渡切回地球（`chinaMap.setReturnEarthHandler` 由 `main.js` 注入）。
 - 地球参数面板也显式定位到**右上角语言条下方**（`top:70px; right:12px; z-index:15`），语言条 `z-index:30` 始终置顶，避免被面板遮住、找不到多语言切换。
 - 中国地图参数同样支持**保存（浏览器记忆）/ 载入 / 导入 JSON / 恢复默认 / 导出 JSON**（与地球一致，见 §9）：`china_map_params_v1` 存 `localStorage`，`CHINA_PARAM_KEYS` 列出持久化键。嵌套的 `ring1/ring2` 采用**就地改属性**而非替换对象（`assignChinaParams`），避免 lil-gui 控件因绑定旧对象引用而失效；`depth/bevel` 载入/恢复后会 `rebuildLevel()` 重绘。
 

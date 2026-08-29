@@ -123,6 +123,7 @@
     "china.titleNation": "中国地图 · 省级行政区",
     "china.titleProvince": "{name} · 下辖区划",
     "china.back": "← 返回",
+    "china.backToEarth": "🌍 返回地球",
     "china.loading": "正在加载地图数据…",
     "china.nationName": "中国",
     "china.noData": "{name} 暂无更细数据",

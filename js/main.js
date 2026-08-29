@@ -88,6 +88,11 @@ const chinaMap = createChinaMap({
 // 因为 applyLanguage() 会读取它（语言切换回调在 initI18n 里触发）。
 let mode = "earth";
 
+// 中国地图顶部「返回地球」按钮：云过渡切回地球
+chinaMap.setReturnEarthHandler(() => {
+  chinaMap.playCloudWipe(() => setMode("earth"));
+});
+
 // ---------------------------------------------------------------------------
 // 尺寸常量
 // ---------------------------------------------------------------------------

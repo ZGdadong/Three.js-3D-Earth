@@ -123,6 +123,7 @@
     "china.titleNation": "China Map · Provinces",
     "china.titleProvince": "{name} · Regions",
     "china.back": "← Back",
+    "china.backToEarth": "🌍 Back to Earth",
     "china.loading": "Loading map data…",
     "china.nationName": "China",
     "china.noData": "No finer data for {name}",

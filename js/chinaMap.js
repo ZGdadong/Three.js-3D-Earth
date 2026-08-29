@@ -890,6 +890,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   let currentAdcode = "100000";
   let currentName = "";
   let buildCtx = null; // 记录当前层级构建上下文，用于 depth/bevel 变化时重绘
+  let returnEarthHandler = null; // 返回地球的回调（由 main.js 注入）
   let currentZMin = -5,
     currentZMax = 5;
   let hovered = null;
@@ -925,6 +926,16 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     goBack();
   });
   header.appendChild(backBtn);
+
+  // 返回地球按钮（从中国地图切回地球）
+  const earthBackBtn = document.createElement("button");
+  earthBackBtn.id = "chinaEarthBack";
+  earthBackBtn.textContent = t("china.backToEarth");
+  earthBackBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (typeof returnEarthHandler === "function") returnEarthHandler();
+  });
+  header.appendChild(earthBackBtn);
 
   const loadingEl = document.createElement("div");
   loadingEl.id = "chinaLoading";
@@ -1234,6 +1245,9 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   }
 
   // ---- 对外接口 ----
+  function setReturnEarthHandler(fn) {
+    returnEarthHandler = fn;
+  }
   function setActive(on) {
     active = on;
     if (on) {
@@ -1391,6 +1405,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
 
   function refreshText() {
     backBtn.textContent = t("china.back");
+    earthBackBtn.textContent = t("china.backToEarth");
     loadingEl.textContent = t("china.loading");
     if (level === "province") {
       titleEl.textContent = t("china.titleProvince").replace("{name}", currentName || "");
@@ -1435,5 +1450,6 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     resetNation: ensureNation,
     playCloudWipe,
     updateCloudWipe,
+    setReturnEarthHandler,
   };
 }
