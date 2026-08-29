@@ -506,3 +506,4 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 - **地形悬停消失**：顶面片元之前 `col = mix(col, uGlow, uHover)` 会把地形整片盖成纯色；应改为**提亮 + 加辉光**（`col*(1+uHover*0.3)+uGlow*uHover*0.5`）。
 - **圆环累积**：重建圆环几何前要先从 holder 里 `remove` 旧的并 dispose，否则旧圆环会不断堆积。
 - **侧面展开变纯色**：侧面悬停要用 `uH`（量化值）并按高度 `h` 缩放，不要把颜色 uniform 当成量化值。
+- **中国地图面板只有标题没参数**：`body.china-mode .lil-gui:not(.china-gui){display:none}` 想隐藏地球 lil-gui，但它也命中了中国地图面板**内部的文件夹**（lil-gui 的文件夹是**不带 `china-gui` class** 的嵌套 `.lil-gui`）。于是「显示 / 旋转圆环 / 扫描能量波」整层被隐藏，只剩下标题。改成仅隐藏**非 `.china-gui` 子树**的选择器：`body.china-mode .lil-gui:not(.china-gui):not(.china-gui .lil-gui)`。

@@ -333,7 +333,7 @@
     }
 
     /* China 模式：隐藏地球相关 UI（中国地图自身的 .china-gui 面板由 JS 控制显示） */
-    body.china-mode .lil-gui:not(.china-gui),
+    body.china-mode .lil-gui:not(.china-gui):not(.china-gui .lil-gui),
     body.china-mode #flightPanel,
     body.china-mode #hud,
     body.china-mode #status {
