@@ -332,6 +332,57 @@
       color: #dff1ff;
     }
 
+    /* 画布录屏（WebM/VP9 无损）：位于视图切换按钮上方 */
+    #recordBar {
+      position: fixed;
+      right: 18px;
+      bottom: 60px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 12;
+      backdrop-filter: blur(6px);
+    }
+    #recordBtn {
+      background: rgba(6, 16, 30, 0.6);
+      color: #dff1ff;
+      border: 1px solid rgba(120, 180, 255, 0.3);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      min-width: 72px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    #recordBtn:hover {
+      background: rgba(63, 140, 200, 0.35);
+      color: #dff1ff;
+    }
+    #recordBtn.recording {
+      background: rgba(220, 60, 60, 0.9);
+      color: #fff;
+      border-color: rgba(255, 150, 150, 0.6);
+      animation: recPulse 1.15s ease-in-out infinite;
+    }
+    @keyframes recPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    #recordQuality {
+      background: rgba(6, 16, 30, 0.6);
+      color: #dff1ff;
+      border: 1px solid rgba(120, 180, 255, 0.3);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #recordQuality:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     /* China 模式：隐藏地球相关 UI（中国地图自身的 .china-gui 面板由 JS 控制显示） */
     body.china-mode .lil-gui:not(.china-gui):not(.china-gui .lil-gui),
     body.china-mode #flightPanel,
@@ -465,6 +516,16 @@
 
   <!-- 视图切换（地球 / 中国地图） -->
   <button id="viewToggle">🗺️ 中国地图</button>
+
+  <!-- 画布录屏（WebM/VP9 无损 + 低占用） -->
+  <div id="recordBar">
+    <button id="recordBtn" data-i18n="rec.start">🎬 录制</button>
+    <select id="recordQuality" data-i18n-title="rec.title" title="画质">
+      <option value="high" data-i18n="rec.qualityHigh">高画质</option>
+      <option value="mid" selected data-i18n="rec.qualityMid">均衡</option>
+      <option value="small" data-i18n="rec.qualitySmall">高压缩</option>
+    </select>
+  </div>
 
   <!-- 状态信息 -->
   <div id="status">

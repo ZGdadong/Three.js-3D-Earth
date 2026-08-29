@@ -1285,6 +1285,7 @@ function applyLanguage() {
   // 视图切换按钮 + 中国地图面板文字
   updateViewToggle();
   chinaMap.refreshText();
+  updateRecordUI(); // 录制按钮/计时文案随语言更新
 }
 
 // 静默恢复上次保存的参数（不弹提示；返回是否恢复成功）
@@ -1388,6 +1389,152 @@ if (vt) {
   vt.addEventListener("click", () => setMode(mode === "earth" ? "china" : "earth"));
 }
 updateViewToggle();
+
+// ---------------------------------------------------------------------------
+// 画布录屏：canvas.captureStream + MediaRecorder → WebM(VP9/AV1) 无损 + 低占用
+//   - 只录 WebGL 画布（地球/中国地图共用同一个 renderer.domElement），不含 GUI/提示，画质纯净
+//   - 默认 VP9（Chrome/Edge/Firefox 原生支持，压缩率高、画质好）；按需可回退 VP8/WebM/MP4
+// ---------------------------------------------------------------------------
+// 说明：用函数懒取 DOM，避免在 initI18n（本块之前执行）触发 applyLanguage→updateRecordUI
+// 时访问尚未初始化完毕的 const（TDZ 会导致启动即报错）。
+function getRecordBtn() {
+  return document.getElementById("recordBtn");
+}
+function getRecordQuality() {
+  return document.getElementById("recordQuality");
+}
+var mediaRecorder = null;
+var recordStream = null;
+var recordChunks = [];
+var recordTimer = null;
+var recordSec = 0;
+
+const REC_MIMES = [
+  "video/webm;codecs=av1",
+  "video/webm;codecs=vp9",
+  "video/webm;codecs=vp8",
+  "video/webm",
+  "video/mp4;codecs=avc1",
+  "video/mp4",
+];
+
+function pickRecMimeType() {
+  if (!window.MediaRecorder) return "";
+  for (const m of REC_MIMES) {
+    try {
+      if (MediaRecorder.isTypeSupported(m)) return m;
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  return "";
+}
+
+function recBitrate() {
+  const q = getRecordQuality() ? getRecordQuality().value : "mid";
+  if (q === "high") return 14e6; // 高画质（视觉无损）
+  if (q === "small") return 3e6; // 高压缩（更小）
+  return 6e6; // 均衡
+}
+
+function setRecordingUi(on) {
+  const btn = getRecordBtn();
+  if (!btn) return;
+  btn.classList.toggle("recording", on);
+  btn.textContent = on ? t("rec.stop") : t("rec.start");
+  const q = getRecordQuality();
+  if (q) q.disabled = on;
+}
+
+function updateRecordUI() {
+  const btn = getRecordBtn();
+  if (!btn) return;
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    btn.textContent = `${t("rec.stop")} ${String(recordSec).padStart(2, "0")}s`;
+  } else {
+    btn.textContent = t("rec.start");
+  }
+}
+
+function downloadRecording(mime) {
+  if (!recordChunks.length) {
+    showToast(t("rec.done"));
+    return;
+  }
+  const type = mime.includes("mp4") ? "mp4" : "webm";
+  const blob = new Blob(recordChunks, { type: mime.split(";")[0] });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `three-3d-earth-${Date.now()}.${type}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  showToast(t("rec.done"));
+}
+
+function startRecording() {
+  if (mediaRecorder && mediaRecorder.state === "recording") return;
+  const mime = pickRecMimeType();
+  if (!mime) {
+    showToast(t("rec.unsupported"));
+    return;
+  }
+  const canvas = renderer.domElement;
+  let stream = null;
+  try {
+    stream = canvas.captureStream ? canvas.captureStream(0) : null;
+  } catch (e) {
+    stream = null;
+  }
+  if (!stream) {
+    showToast(t("rec.unsupported"));
+    return;
+  }
+  const opts = { mimeType: mime, videoBitsPerSecond: recBitrate() };
+  try {
+    mediaRecorder = new MediaRecorder(stream, opts);
+  } catch (e) {
+    showToast(t("rec.unsupported"));
+    return;
+  }
+  recordStream = stream;
+  recordChunks = [];
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size) recordChunks.push(e.data);
+  };
+  mediaRecorder.onstop = () => {
+    downloadRecording(mime);
+    mediaRecorder = null;
+    recordStream = null;
+  };
+  mediaRecorder.start(1000); // 每秒收集一块，保证最后一块完整写入
+  recordSec = 0;
+  clearInterval(recordTimer);
+  recordTimer = setInterval(() => {
+    recordSec++;
+    updateRecordUI();
+  }, 1000);
+  showToast(t("rec.started"));
+  setRecordingUi(true);
+  updateRecordUI();
+}
+
+function stopRecording() {
+  if (!mediaRecorder || mediaRecorder.state !== "recording") return;
+  clearInterval(recordTimer);
+  mediaRecorder.stop();
+  setRecordingUi(false);
+  updateRecordUI();
+}
+
+if (getRecordBtn()) {
+  getRecordBtn().addEventListener("click", () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") stopRecording();
+    else startRecording();
+  });
+}
 
 function animate() {
   requestAnimationFrame(animate);

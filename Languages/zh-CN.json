@@ -274,6 +274,15 @@
     "city.拉萨": "拉萨",
     "city.银川": "银川",
     "city.西宁": "西宁",
-    "city.长春": "长春"
+    "city.长春": "长春",
+    "rec.start": "🎬 录制",
+    "rec.stop": "⏹ 停止",
+    "rec.started": "🔴 已开始录制…",
+    "rec.done": "💾 视频已保存",
+    "rec.unsupported": "⚠️ 当前浏览器不支持画布录屏",
+    "rec.title": "画布录屏（WebM/VP9 无损 + 低占用）",
+    "rec.qualityHigh": "高画质",
+    "rec.qualityMid": "均衡",
+    "rec.qualitySmall": "高压缩"
   }
 }

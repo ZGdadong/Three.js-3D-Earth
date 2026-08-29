@@ -274,6 +274,15 @@
     "city.拉萨": "Lhasa",
     "city.银川": "Yinchuan",
     "city.西宁": "Xining",
-    "city.长春": "Changchun"
+    "city.长春": "Changchun",
+    "rec.start": "🎬 Record",
+    "rec.stop": "⏹ Stop",
+    "rec.started": "🔴 Recording started…",
+    "rec.done": "💾 Video saved",
+    "rec.unsupported": "⚠️ Canvas recording not supported in this browser",
+    "rec.title": "Canvas recording (lossless WebM/VP9, low size)",
+    "rec.qualityHigh": "High",
+    "rec.qualityMid": "Balanced",
+    "rec.qualitySmall": "Small"
   }
 }

@@ -274,6 +274,15 @@
     "city.拉萨": "ラサ",
     "city.银川": "銀川",
     "city.西宁": "西寧",
-    "city.长春": "長春"
+    "city.长春": "長春",
+    "rec.start": "🎬 録画",
+    "rec.stop": "⏹ 停止",
+    "rec.started": "🔴 録画を開始しました…",
+    "rec.done": "💾 動画を保存しました",
+    "rec.unsupported": "⚠️ このブラウザはキャンバス録画に対応していません",
+    "rec.title": "キャンバス録画（画質無劣化 WebM/VP9・省容量）",
+    "rec.qualityHigh": "高画質",
+    "rec.qualityMid": "標準",
+    "rec.qualitySmall": "高圧縮"
   }
 }
