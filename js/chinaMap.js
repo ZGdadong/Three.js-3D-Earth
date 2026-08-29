@@ -350,6 +350,121 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     sideScanColor: "#4fd0ff",
   };
 
+  // ---- 参数持久化（保存 / 载入 / 恢复默认 / 导出 / 导入 JSON）----
+  const CHINA_PARAMS_KEY = "china_params_v1";
+  const CHINA_PARAM_KEYS = [
+    "glow", "float", "terrain", "terrainAmount", "depth", "bevel",
+    "ring1", "ring2",
+    "scanOn", "scanSpeed", "scanWidth", "scanIntensity", "scanColor",
+    "sideScanOn", "sideScanSpeed", "sideScanWidth", "sideScanIntensity", "sideScanColor",
+  ];
+  const CHINA_DEFAULT_PARAMS = JSON.parse(JSON.stringify(chinaParams)); // 默认值深拷贝快照
+
+  // 把一份数据应用进 chinaParams。嵌套的 ring1/ring2 必须“就地改属性”，
+  // 因为 lil-gui 控件绑定的是创建时的对象引用，直接替换对象会导致控件失效。
+  function assignChinaParams(data) {
+    for (const k of CHINA_PARAM_KEYS) {
+      if (!(k in data)) continue;
+      if (k === "ring1" || k === "ring2") {
+        const d = data[k];
+        if (d && typeof d === "object") for (const kk of Object.keys(d)) chinaParams[k][kk] = d[kk];
+      } else {
+        chinaParams[k] = data[k];
+      }
+    }
+  }
+
+  function collectChinaParams() {
+    const data = {};
+    for (const k of CHINA_PARAM_KEYS) data[k] = chinaParams[k];
+    return data;
+  }
+  function saveChinaParams() {
+    localStorage.setItem(CHINA_PARAMS_KEY, JSON.stringify(collectChinaParams()));
+    showToast(t("toast.saved"));
+  }
+  function loadChinaParams() {
+    const raw = localStorage.getItem(CHINA_PARAMS_KEY);
+    if (!raw) {
+      showToast(t("toast.noParams"));
+      return;
+    }
+    try {
+      assignChinaParams(JSON.parse(raw));
+    } catch (e) {
+      showToast(t("toast.loadFailed"));
+      return;
+    }
+    if (chinaGui) chinaGui.controllersRecursive().forEach((c) => c.updateDisplay());
+    rebuildLevel(); // 恢复的 depth/bevel 需重建几何
+    showToast(t("toast.loaded"));
+  }
+  function resetChinaParams() {
+    assignChinaParams(CHINA_DEFAULT_PARAMS);
+    if (chinaGui) chinaGui.controllersRecursive().forEach((c) => c.updateDisplay());
+    rebuildLevel();
+    showToast(t("toast.resetDone"));
+  }
+  function exportChinaParams() {
+    const blob = new Blob([JSON.stringify(collectChinaParams(), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "china_params.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast(t("toast.exported"));
+  }
+  function importChinaParams() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.style.display = "none";
+    document.body.appendChild(input);
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0];
+      if (!file) {
+        input.remove();
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          let count = 0;
+          for (const k of CHINA_PARAM_KEYS) if (k in data) count++;
+          assignChinaParams(data);
+          if (chinaGui) chinaGui.controllersRecursive().forEach((c) => c.updateDisplay());
+          rebuildLevel();
+          showToast(t("toast.imported", { count }));
+        } catch (e) {
+          showToast(t("toast.importFailed"));
+        } finally {
+          input.remove();
+        }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  }
+
+  // 挂到 chinaParams 生成 lil-gui 按钮
+  chinaParams.save = saveChinaParams;
+  chinaParams.load = loadChinaParams;
+  chinaParams.reset = resetChinaParams;
+  chinaParams.export = exportChinaParams;
+  chinaParams.import = importChinaParams;
+
+  // 静默恢复上次保存（不弹提示；GUI 与几何在进入中国地图时自然使用这些值）
+  try {
+    const raw = localStorage.getItem(CHINA_PARAMS_KEY);
+    if (raw) assignChinaParams(JSON.parse(raw));
+  } catch (e) {
+    /* ignore */
+  }
+
   // ---- 底部台面 ----
   const floor = makeFloor();
   scene.add(floor.group);
@@ -424,6 +539,15 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     fScan.add(chinaParams, "sideScanWidth", 0.02, 0.5, 0.01).name(t("china.sideScanWidth"));
     fScan.add(chinaParams, "sideScanIntensity", 0, 2, 0.05).name(t("china.sideScanIntensity"));
     fScan.addColor(chinaParams, "sideScanColor").name(t("china.sideScanColor"));
+
+    // 参数保存 / 载入 / 导入 / 恢复默认 / 导出（与地球一致）
+    const fSave = chinaGui.addFolder(t("folder.save"));
+    fSave.add(chinaParams, "save").name(t("param.save"));
+    fSave.add(chinaParams, "load").name(t("param.load"));
+    fSave.add(chinaParams, "import").name(t("param.import"));
+    fSave.add(chinaParams, "reset").name(t("param.reset"));
+    fSave.add(chinaParams, "export").name(t("param.export"));
+
     // 明确位置 / 层级，且显示与否由 active 控制（避免与语言条/地球面板重叠或遮住）
     chinaGui.domElement.style.position = "fixed";
     chinaGui.domElement.style.right = "12px";

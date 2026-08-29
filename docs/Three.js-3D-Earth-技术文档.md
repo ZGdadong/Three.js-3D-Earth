@@ -504,7 +504,8 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 
 ### 14.8 视图切换与面板
 - `main.js` 里 `let mode = 'earth'`；`animate()` 按 `mode` 分支渲染 `earth` 或 `chinaMap` 场景；切换时**只启用对应一组 OrbitControls**。
-- 进入中国地图时用 JS 隐藏地球 lil-gui、显示中国地图的 `.china-gui` 面板（三个文件夹：显示 / 旋转圆环 / 扫描能量波），离开再切回。
+- 进入中国地图时用 JS 隐藏地球 lil-gui、显示中国地图的 `.china-gui` 面板（文件夹：显示 / 旋转圆环 / 扫描能量波 / 💾 参数），离开再切回。
+- 中国地图参数同样支持**保存（浏览器记忆）/ 载入 / 导入 JSON / 恢复默认 / 导出 JSON**（与地球一致，见 §9）：`china_map_params_v1` 存 `localStorage`，`CHINA_PARAM_KEYS` 列出持久化键。嵌套的 `ring1/ring2` 采用**就地改属性**而非替换对象（`assignChinaParams`），避免 lil-gui 控件因绑定旧对象引用而失效；`depth/bevel` 载入/恢复后会 `rebuildLevel()` 重绘。
 
 ### 14.9 常见坑（中国地图）
 - **`Cannot access 'mode' before initialization`**：`mode` 用 `let` 声明且 `applyLanguage()`（在 `initI18n` 的语言回调里触发）会读它 —— 必须把 `let mode` **声明在 `initI18n()` 之前**，否则 TDZ 报错并弄崩多语言。
