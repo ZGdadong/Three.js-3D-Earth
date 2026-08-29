@@ -520,3 +520,51 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 - **圆环累积**：重建圆环几何前要先从 holder 里 `remove` 旧的并 dispose，否则旧圆环会不断堆积。
 - **侧面展开变纯色**：侧面悬停要用 `uH`（量化值）并按高度 `h` 缩放，不要把颜色 uniform 当成量化值。
 - **中国地图面板只有标题没参数**：`body.china-mode .lil-gui:not(.china-gui){display:none}` 想隐藏地球 lil-gui，但它也命中了中国地图面板**内部的文件夹**（lil-gui 的文件夹是**不带 `china-gui` class** 的嵌套 `.lil-gui`）。于是「显示 / 旋转圆环 / 扫描能量波」整层被隐藏，只剩下标题。改成仅隐藏**非 `.china-gui` 子树**的选择器：`body.china-mode .lil-gui:not(.china-gui):not(.china-gui .lil-gui)`。
+
+---
+
+## 15. 画布录屏（canvas.captureStream + MediaRecorder → WebM/VP9）
+
+> 右下角「🎬 录制」按钮：把 **WebGL 画布**（地球 / 中国地图共用同一个 `renderer.domElement`，所以两个视图都能录）实时录成 **WebM/VP9** 视频。核心好处：**画质接近无损 + 文件占用小**（VP9 压缩率很高）。右下角还可选画质：**高画质 / 均衡 / 高压缩**。
+
+### 15.1 原理
+- `HTMLCanvasElement.captureStream(fps)` 从画布拿到一个实时的 `MediaStream`；
+- `new MediaRecorder(stream, { mimeType, videoBitsPerSecond })` 把它编码成视频；
+- 停止后把收集到的 `Blob` 分块拼成文件，用 `<a download>` 下载。
+- 编码器自动挑选（`MediaRecorder.isTypeSupported`）：
+  `av1 → vp9 → vp8 → webm`，其次 `mp4/avc1 → mp4`（Safari/移动端兜底）。默认优先 **VP9**（Chrome/Edge/Firefox 原生支持，画质/体积最均衡）。
+- 码率按画质档：**高 14Mbps / 均衡 6Mbps / 高压缩 3Mbps**（`videoBitsPerSecond`），高画质档对 3D 渲染几乎「视觉无损」。
+
+### 15.2 ★ 关键坑：WebGL 画布只有首帧（录出来像截图）
+Three.js 的 `WebGLRenderer` 默认 `preserveDrawingBuffer: false`。此时 `canvas.captureStream()` 对 WebGL 画布**只捕到第一帧，后面全空白** —— MediaRecorder 基本只编了一帧，导出文件看起来就像一张静态照片。
+
+修复（两处要一起）：
+1. **渲染器开启 `preserveDrawingBuffer: true`**，让画布内容能被逐帧读回：
+   ```js
+   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+   ```
+2. **拿到视频轨后逐帧 `requestFrame()`**（对 WebGL 是确定性触发，不再依赖浏览器自动捕获）。在 `animate()` 的两种渲染分支后，各加一次：
+   ```js
+   renderer.render(scene, camera);
+   captureRecordFrame(); // requestFrame() 把当前帧推进录制流
+   ```
+   ```js
+   // 每次开始时取视频轨
+   recordTrack = stream.getVideoTracks()[0] || null;
+   function captureRecordFrame() {
+     if (!recordTrack || !mediaRecorder || mediaRecorder.state !== "recording") return;
+     try { if (recordTrack.requestFrame) recordTrack.requestFrame(); } catch (e) {}
+   }
+   ```
+
+### 15.3 边界与说明
+- 只录画布、**不含** lil-gui 面板 / 提示 / 按钮等 DOM，画质更纯净。
+- **浏览器没有真正的无损视频编码**（如 FFV1）；VP9 在高码率下视觉无损、体积小，是「A. 画布实时录制」路线里最接近目标的选择。
+- 录制中切换地球 / 中国地图 / 语言、调参数都被正常录进去（画布始终在渲染）。
+- 不支持 `captureStream` / `MediaRecorder` 的浏览器会提示「当前浏览器不支持画布录屏」。
+
+### 15.4 相关代码 / 多语言
+- 逻辑在 `js/main.js`（`startRecording / stopRecording / downloadRecording / captureRecordFrame` 等）。
+- 按钮 / 画质下拉在 `index.html` 的 `#recordBar`；样式在 `index.html` 的 `#recordBtn / #recordQuality`。
+- 文案走 i18n，键前缀 `rec.*`（`rec.start / rec.stop / rec.started / rec.done / rec.unsupported / rec.qualityHigh / rec.qualityMid / rec.qualitySmall / rec.title`），已覆盖 zh-CN / en-US / ja-JP / fr-FR。
+
