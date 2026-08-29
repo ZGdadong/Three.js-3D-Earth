@@ -252,7 +252,16 @@ function makeGlowDisc(size, color) {
 }
 
 // ---- 底部台面：发光渐变圆盘 + 栅格 + 两个圆环支架 ----
-function makeFloor() {
+function applyGridStyle(grid, opacity) {
+  const gMats = Array.isArray(grid.material) ? grid.material : [grid.material];
+  gMats.forEach((m) => {
+    m.transparent = true;
+    m.opacity = opacity;
+    m.blending = THREE.AdditiveBlending;
+    m.depthWrite = false;
+  });
+}
+function makeFloor(gridCfg) {
   const group = new THREE.Group();
 
   const disc = makeGlowDisc(20, "rgba(40,130,210,0.5)");
@@ -260,15 +269,9 @@ function makeFloor() {
   disc.position.y = -0.02;
   group.add(disc);
 
-  const grid = new THREE.GridHelper(20, 20, 0x2a6ea0, 0x1a4a70);
-  grid.position.y = -0.005;
-  const gridMats = Array.isArray(grid.material) ? grid.material : [grid.material];
-  gridMats.forEach((m) => {
-    m.transparent = true;
-    m.opacity = 0.28;
-    m.blending = THREE.AdditiveBlending;
-    m.depthWrite = false;
-  });
+  const grid = new THREE.GridHelper(gridCfg.size, gridCfg.divisions, gridCfg.colorCenter, gridCfg.colorLine);
+  grid.position.y = gridCfg.height;
+  applyGridStyle(grid, gridCfg.opacity);
   group.add(grid);
 
   // 两个圆环支架（各自绕 Y 轴旋转）
@@ -276,7 +279,7 @@ function makeFloor() {
   const holderB = new THREE.Group();
   group.add(holderA, holderB);
 
-  return { group, ringHolders: [holderA, holderB] };
+  return { group, ringHolders: [holderA, holderB], gridMesh: grid };
 }
 
 export function createChinaMap({ container, rendererDom, width, height }) {
@@ -440,28 +443,37 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     sideScanWidth: 0.08,
     sideScanIntensity: 0.9,
     sideScanColor: "#4fd0ff",
+    // 底部栅格
+    grid: {
+      size: 20, // 网格范围大小
+      divisions: 20, // 分割份数
+      colorCenter: "#2a6ea0", // 中心线颜色
+      colorLine: "#1a4a70", // 细线颜色
+      opacity: 0.28, // 栅格透明度
+      height: -0.005, // 栅格高度（相对发光圆盘）
+    },
   };
 
   // ---- 参数持久化（保存 / 载入 / 恢复默认 / 导出 / 导入 JSON）----
   const CHINA_PARAMS_KEY = "china_params_v1";
   const CHINA_PARAM_KEYS = [
     "glow", "float", "terrain", "terrainAmount", "depth", "bevel",
-    "ring1", "ring2",
+    "ring1", "ring2", "grid",
     "scanOn", "scanSpeed", "scanWidth", "scanIntensity", "scanColor",
     "sideScanOn", "sideScanSpeed", "sideScanWidth", "sideScanIntensity", "sideScanColor",
   ];
   const CHINA_DEFAULT_PARAMS = JSON.parse(JSON.stringify(chinaParams)); // 默认值深拷贝快照
 
-  // 把一份数据应用进 chinaParams。嵌套的 ring1/ring2 必须“就地改属性”，
+  // 把一份数据应用进 chinaParams。嵌套的 ring1/ring2/grid 必须“就地改属性”，
   // 因为 lil-gui 控件绑定的是创建时的对象引用，直接替换对象会导致控件失效。
   function assignChinaParams(data) {
     for (const k of CHINA_PARAM_KEYS) {
       if (!(k in data)) continue;
-      if (k === "ring1" || k === "ring2") {
-        const d = data[k];
-        if (d && typeof d === "object") for (const kk of Object.keys(d)) chinaParams[k][kk] = d[kk];
+      const d = data[k];
+      if (d && typeof d === "object" && !Array.isArray(d)) {
+        for (const kk of Object.keys(d)) chinaParams[k][kk] = d[kk];
       } else {
-        chinaParams[k] = data[k];
+        chinaParams[k] = d;
       }
     }
   }
@@ -489,12 +501,14 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     }
     if (chinaGui) chinaGui.controllersRecursive().forEach((c) => c.updateDisplay());
     rebuildLevel(); // 恢复的 depth/bevel 需重建几何
+    rebuildGrid(); // 恢复的栅格参数需重建
     showToast(t("toast.loaded"));
   }
   function resetChinaParams() {
     assignChinaParams(CHINA_DEFAULT_PARAMS);
     if (chinaGui) chinaGui.controllersRecursive().forEach((c) => c.updateDisplay());
     rebuildLevel();
+    rebuildGrid();
     showToast(t("toast.resetDone"));
   }
   function exportChinaParams() {
@@ -530,6 +544,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
           assignChinaParams(data);
           if (chinaGui) chinaGui.controllersRecursive().forEach((c) => c.updateDisplay());
           rebuildLevel();
+          rebuildGrid();
           showToast(t("toast.imported", { count }));
         } catch (e) {
           showToast(t("toast.importFailed"));
@@ -558,8 +573,34 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   }
 
   // ---- 底部台面 ----
-  const floor = makeFloor();
+  const floor = makeFloor(chinaParams.grid);
   scene.add(floor.group);
+
+  // 底部栅格：size/divisions/颜色 变化需重建几何；opacity/height 可直接实时更新
+  let gridMesh = floor.gridMesh;
+  function rebuildGrid() {
+    const old = gridMesh;
+    if (old) {
+      old.geometry.dispose();
+      if (old.material) old.material.dispose();
+      floor.group.remove(old);
+    }
+    const g = new THREE.GridHelper(
+      chinaParams.grid.size,
+      chinaParams.grid.divisions,
+      chinaParams.grid.colorCenter,
+      chinaParams.grid.colorLine,
+    );
+    g.position.y = chinaParams.grid.height;
+    applyGridStyle(g, chinaParams.grid.opacity);
+    floor.group.add(g);
+    gridMesh = g;
+  }
+  function updateGrid() {
+    if (!gridMesh) return;
+    gridMesh.position.y = chinaParams.grid.height;
+    applyGridStyle(gridMesh, chinaParams.grid.opacity);
+  }
 
   let ringMeshes = [];
   const RING_RADII = [5.6, 6.4]; // 内圈 / 外圈半径
@@ -631,6 +672,27 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     fScan.add(chinaParams, "sideScanWidth", 0.02, 0.5, 0.01).name(t("china.sideScanWidth"));
     fScan.add(chinaParams, "sideScanIntensity", 0, 2, 0.05).name(t("china.sideScanIntensity"));
     fScan.addColor(chinaParams, "sideScanColor").name(t("china.sideScanColor"));
+
+    // 底部栅格
+    const fGrid = chinaGui.addFolder(t("china.folderGrid"));
+    fGrid
+      .add(chinaParams.grid, "size", 5, 40, 1)
+      .name(t("china.gridSize"))
+      .onFinishChange(() => rebuildGrid());
+    fGrid
+      .add(chinaParams.grid, "divisions", 4, 40, 1)
+      .name(t("china.gridDivisions"))
+      .onFinishChange(() => rebuildGrid());
+    fGrid.addColor(chinaParams.grid, "colorCenter").name(t("china.gridColorCenter")).onChange(() => rebuildGrid());
+    fGrid.addColor(chinaParams.grid, "colorLine").name(t("china.gridColorLine")).onChange(() => rebuildGrid());
+    fGrid
+      .add(chinaParams.grid, "opacity", 0, 1, 0.01)
+      .name(t("china.gridOpacity"))
+      .onChange(() => updateGrid());
+    fGrid
+      .add(chinaParams.grid, "height", -0.5, 0.5, 0.005)
+      .name(t("china.gridHeight"))
+      .onChange(() => updateGrid());
 
     // 参数保存 / 载入 / 导入 / 恢复默认 / 导出（与地球一致）
     const fSave = chinaGui.addFolder(t("folder.save"));
