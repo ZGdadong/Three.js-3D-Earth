@@ -334,30 +334,33 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   }
   // 铺满全屏的云带：把多朵云铺成一条比视口更宽的横带（同一种图片可出现多次），
   // 过渡时整条带子从右往左滑过，始终盖住屏幕，最后淡出露出新图。
+  // 注：云图本身有透明边距（图 200×100 只有中心 150×75 是云，约 75%），
+  // 所以用 background-size>100% 把云放大填满格子，并提高密度让相邻云互相重叠、完全遮盖。
+  const CLOUD_BG_SIZE = "150% 150%"; // 覆盖中心 75% 的云需放大 ~1.33 倍，取 1.5 更保险
   function spawnClouds() {
     const ov = ensureCloudOverlay();
     ov.innerHTML = "";
     const strip = document.createElement("div");
     strip.id = "chinaCloudStrip";
     strip.style.cssText =
-      "position:absolute;top:0;left:0;width:300vw;height:100vh;will-change:transform;";
+      "position:absolute;top:0;left:0;width:340vw;height:100vh;will-change:transform;";
     ov.appendChild(strip);
     cloudStrip = strip;
     cloudEls = [];
-    const rows = [12, 45, 78]; // 三行，竖向铺满
-    const cols = 8;
-    const colSpacing = 40;
+    const rows = [6, 26, 46, 66, 86]; // 五行，纵向铺满
+    const cols = 20; // 密度约为原来的 4 倍（原 3×8=24 → 5×20=100）
+    const colSpacing = 17;
     for (let r = 0; r < rows.length; r++) {
       for (let c = 0; c < cols; c++) {
         const el = document.createElement("div");
         const img = CLOUD_FILES[(r * cols + c) % CLOUD_FILES.length];
-        const size = 32 + Math.random() * 12; // 每朵云宽（相对视口）
-        const x = c * colSpacing + (Math.random() * 10 - 5);
+        const size = 34 + Math.random() * 12; // 每朵云宽（相对视口）
+        const x = c * colSpacing + (Math.random() * 14 - 7);
         const y = rows[r] + (Math.random() * 8 - 4);
         el.style.cssText =
           `position:absolute;left:${x}vw;top:${y}vh;width:${size}vw;aspect-ratio:1.6;` +
-          `background-image:url('${img}');background-size:contain;background-repeat:no-repeat;` +
-          `opacity:0;pointer-events:none;` +
+          `background-image:url('${img}');background-size:${CLOUD_BG_SIZE};background-position:center;` +
+          `background-repeat:no-repeat;opacity:0;pointer-events:none;` +
           `filter:drop-shadow(0 10px 28px rgba(120,200,255,.4));`;
         strip.appendChild(el);
         cloudEls.push(el);
