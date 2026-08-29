@@ -312,6 +312,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   const CLOUD_FILES = ["./images/cloud1.png", "./images/cloud2.png", "./images/cloud3.png", "./images/cloud4.png"];
   let cloudOverlay = null;
   let cloudEls = [];
+  let cloudStrip = null; // 更宽的云带容器，整体从右往左滑动以覆盖全屏
 
   function easeOutCubic(x) {
     return 1 - Math.pow(1 - x, 3);
@@ -331,49 +332,54 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     document.body.appendChild(cloudOverlay);
     return cloudOverlay;
   }
-  // 生成云朵（同一种图片可多次出现），从屏幕中心向四周散开
+  // 铺满全屏的云带：把多朵云铺成一条比视口更宽的横带（同一种图片可出现多次），
+  // 过渡时整条带子从右往左滑过，始终盖住屏幕，最后淡出露出新图。
   function spawnClouds() {
     const ov = ensureCloudOverlay();
     ov.innerHTML = "";
+    const strip = document.createElement("div");
+    strip.id = "chinaCloudStrip";
+    strip.style.cssText =
+      "position:absolute;top:0;left:0;width:300vw;height:100vh;will-change:transform;";
+    ov.appendChild(strip);
+    cloudStrip = strip;
     cloudEls = [];
-    const count = 7;
-    for (let i = 0; i < count; i++) {
-      const el = document.createElement("div");
-      const img = CLOUD_FILES[i % CLOUD_FILES.length];
-      const size = 0.3 + Math.random() * 0.2; // 相对视口宽
-      el.style.cssText =
-        `position:absolute;left:50%;top:50%;width:${size * 100}vw;aspect-ratio:1.6;` +
-        `background-image:url('${img}');background-size:contain;background-repeat:no-repeat;` +
-        `opacity:0;transform:translate(-50%,-50%) scale(0.6);pointer-events:none;` +
-        `filter:drop-shadow(0 8px 24px rgba(120,200,255,.35));`;
-      ov.appendChild(el);
-      cloudEls.push({
-        el,
-        angle: Math.random() * Math.PI * 2,
-        distBase: 0.04 + Math.random() * 0.1,
-        maxDist: 0.26 + Math.random() * 0.24,
-      });
+    const rows = [12, 45, 78]; // 三行，竖向铺满
+    const cols = 8;
+    const colSpacing = 40;
+    for (let r = 0; r < rows.length; r++) {
+      for (let c = 0; c < cols; c++) {
+        const el = document.createElement("div");
+        const img = CLOUD_FILES[(r * cols + c) % CLOUD_FILES.length];
+        const size = 32 + Math.random() * 12; // 每朵云宽（相对视口）
+        const x = c * colSpacing + (Math.random() * 10 - 5);
+        const y = rows[r] + (Math.random() * 8 - 4);
+        el.style.cssText =
+          `position:absolute;left:${x}vw;top:${y}vh;width:${size}vw;aspect-ratio:1.6;` +
+          `background-image:url('${img}');background-size:contain;background-repeat:no-repeat;` +
+          `opacity:0;pointer-events:none;` +
+          `filter:drop-shadow(0 10px 28px rgba(120,200,255,.4));`;
+        strip.appendChild(el);
+        cloudEls.push(el);
+      }
     }
   }
   function hideClouds() {
     if (cloudOverlay) cloudOverlay.innerHTML = "";
     cloudEls = [];
+    cloudStrip = null;
   }
-  // p: 整段过渡进度 0..1；云从中间向四周轻散开，中途最浓，尾段淡出
+  // p: 整段过渡进度 0..1；云带从右往左线性滑过（覆盖全屏），头尾淡入淡出
   function updateClouds(p) {
-    const appear = Math.min(p / 0.3, 1); // 前 30% 淡入
-    const fade = p > 0.7 ? 1 - (p - 0.7) / 0.3 : 1; // 后 30% 淡出
+    if (!cloudStrip) return;
+    const appear = Math.min(p / 0.28, 1); // 前 28% 淡入
+    const fade = p > 0.72 ? 1 - (p - 0.72) / 0.28 : 1; // 后 28% 淡出
     const op = Math.max(0, Math.min(appear, fade)) * 0.95;
-    for (const c of cloudEls) {
-      const r = (c.distBase + (c.maxDist - c.distBase) * easeOutCubic(Math.min(p, 1))) * 100;
-      const x = Math.cos(c.angle) * r;
-      const y = Math.sin(c.angle) * r;
-      const s = 0.7 + p * 0.9;
-      c.el.style.transform = `translate(-50%,-50%) translate(${x}vw,${y}vh) scale(${s})`;
-      c.el.style.opacity = op;
-    }
+    const slide = Math.min(p, 1) * 70; // 线性向左滑动的距离（vw），右→左
+    cloudStrip.style.transform = `translateX(-${slide}vw)`;
+    for (const el of cloudEls) el.style.opacity = op;
   }
-  // 开始一次层级切换：先缩小当前图，再从中间放云，最后放大 target 所示的新层级
+  // 开始一次层级切换：先缩小当前图，再让云带从右往左滑过（铺满屏幕），最后放大新层级
   function startTransition(target) {
     if (!target) return;
     transition = { t: 0, target, swapped: false };
