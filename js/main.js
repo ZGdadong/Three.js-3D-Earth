@@ -17,6 +17,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import GUI from "lil-gui";
 import { FlightLines, CITIES as FLIGHT_CITIES } from "./flightlines.js";
+import { createChinaMap } from "./chinaMap.js";
 import {
   t,
   initI18n,
@@ -74,6 +75,14 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 2.6;
 controls.maxDistance = 40;
+
+// 中国地图（独立场景，用于「地球 / 中国地图」视图切换）
+const chinaMap = createChinaMap({
+  container,
+  rendererDom: renderer.domElement,
+  width: window.innerWidth,
+  height: window.innerHeight,
+});
 
 // ---------------------------------------------------------------------------
 // 尺寸常量
@@ -1085,6 +1094,9 @@ function applyLanguage() {
       ? t("flight.expand")
       : t("flight.collapse");
   }
+  // 视图切换按钮 + 中国地图面板文字
+  updateViewToggle();
+  chinaMap.refreshText();
 }
 
 // 静默恢复上次保存的参数（不弹提示；返回是否恢复成功）
@@ -1148,11 +1160,54 @@ function sunDirFromAzimuthElevation(azDeg, elevDeg) {
 // ---------------------------------------------------------------------------
 const clock = new THREE.Clock();
 
+// ---------------------------------------------------------------------------
+// 视图切换：地球 / 中国地图
+// ---------------------------------------------------------------------------
+let mode = "earth"; // earth | china
+
+function viewToggleEl() {
+  return document.getElementById("viewToggle");
+}
+
+function updateViewToggle() {
+  const btn = viewToggleEl();
+  if (!btn) return;
+  const toChina = mode === "earth";
+  btn.textContent = toChina ? t("view.china") : t("view.earth");
+  btn.title = toChina ? t("view.chinaTitle") : t("view.earthTitle");
+}
+
+function setMode(next) {
+  if (mode === next) return;
+  mode = next;
+  const isChina = mode === "china";
+  // 两个场景共用同一个 renderer.domElement，切换时只启用对应的一套 controls
+  controls.enabled = !isChina;
+  chinaMap.controls.enabled = isChina;
+  chinaMap.setActive(isChina);
+  clock.getDelta(); // 清掉切换瞬间累积的 delta，避免下一帧跳变
+  updateViewToggle();
+}
+
+const vt = viewToggleEl();
+if (vt) {
+  vt.addEventListener("click", () => setMode(mode === "earth" ? "china" : "earth"));
+}
+updateViewToggle();
+
 function animate() {
   requestAnimationFrame(animate);
 
   const delta = clock.getDelta();
   const elapsed = clock.getElapsedTime();
+
+  // --- 中国地图模式：渲染独立场景，跳过地球逻辑 ---
+  if (mode === "china") {
+    chinaMap.update(delta);
+    renderer.render(chinaMap.scene, chinaMap.camera);
+    return;
+  }
+
 
   // --- 昼夜光照方向 ---
   if (params.timePreset === "auto") {
@@ -1286,4 +1341,5 @@ window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  chinaMap.setSize(window.innerWidth, window.innerHeight);
 });

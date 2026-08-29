@@ -29,6 +29,7 @@ A **realistic 3D Earth** built with **Three.js**, featuring dynamic **day/night 
 - **Parameter panel**: `lil-gui` adjusts almost all parameters.
 - **Parameter persistence**: saved to browser `localStorage` and restored on refresh; supports export/import JSON and reset to defaults.
 - **Multi-language (i18n)**: the whole UI is localized (text / lil-gui panel / city markers / flight table); one JSON per language under `Languages/`, switch instantly from the top-right dropdown, and missing keys fall back to Chinese.
+- **China map · province drill-down**: switch between "Earth" and "China map" with one button at the top-right; GeoJSON-extruded provinces using a custom **gradient + glow** material (deep navy → cyan top), glowing cyan boundary lines; **hover to float up + highlight and show the name**, single-click to drill into a province (sub-regions), double-click / the top-left "Back" button to return to the whole country. The floor is a glowing gradient disc + grid + two rotating rings with a configurable gap, and the whole map has a bottom-to-top **scan energy wave**. Fully offline, bundled under `data/geojson/`; adjust glow / float / ring color-opacity-width-gap / scan wave from the right-side lil-gui panel.
 
 ---
 
@@ -48,7 +49,10 @@ Three.js-3D-Earth/
 ├─ js/
 │  ├─ main.js            # All scene & logic (shaders, materials, GUI, persistence, animation, i18n)
 │  ├─ i18n.js            # i18n loader (reads Languages/*.json, switching, persistence, t() translation)
-│  └─ flightlines.js     # Dynamic flight-line module (city db + flight lines + endpoint ripples)
+│  ├─ flightlines.js     # Dynamic flight-line module (city db + flight lines + endpoint ripples)
+│  └─ chinaMap.js        # China map module (GeoJSON extruded provinces + drill-down + hover/back)
+├─ data/
+│  └─ geojson/           # China & province GeoJSON (bundled offline, drill-down data source)
 ├─ Languages/            # Language packs (one JSON per language, see below)
 │  ├─ zh-CN.json         # 中文
 │  ├─ en-US.json         # English
