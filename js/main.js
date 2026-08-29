@@ -1083,6 +1083,7 @@ function syncLanguageBar() {
 function applyLanguage() {
   applyStaticText(); // index.html 中的 data-i18n / data-i18n-title
   buildGui(); // GUI 标题、分组、控件名按当前语言重建
+  if (gui) gui.domElement.style.display = mode === "china" ? "none" : ""; // 保持当前视图下地球面板的显隐
   renderFlightTable(); // 飞线表格里的城市中文显示名 -> 当前语言
   buildCityMarkers(); // 城市标注精灵文字 -> 当前语言
   syncLanguageBar(); // 语言下拉框选项与提示
@@ -1185,6 +1186,8 @@ function setMode(next) {
   controls.enabled = !isChina;
   chinaMap.controls.enabled = isChina;
   chinaMap.setActive(isChina);
+  // 进入中国地图时隐藏地球参数面板，避免两者重叠
+  if (gui) gui.domElement.style.display = isChina ? "none" : "";
   clock.getDelta(); // 清掉切换瞬间累积的 delta，避免下一帧跳变
   updateViewToggle();
 }

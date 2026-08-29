@@ -322,7 +322,16 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     fScan.add(chinaParams, "scanWidth", 0.05, 2, 0.05).name(t("china.scanWidth"));
     fScan.add(chinaParams, "scanIntensity", 0, 2, 0.05).name(t("china.scanIntensity"));
     fScan.addColor(chinaParams, "scanColor").name(t("china.scanColor"));
+    // 明确位置 / 层级，且显示与否由 active 控制（避免与语言条/地球面板重叠或遮住）
+    chinaGui.domElement.style.position = "fixed";
+    chinaGui.domElement.style.right = "12px";
+    chinaGui.domElement.style.top = "70px";
+    chinaGui.domElement.style.zIndex = "15";
     chinaGui.domElement.style.display = active ? "block" : "none";
+    // 展开所有文件夹，确保参数可见
+    if (chinaGui.foldersRecursive) {
+      chinaGui.foldersRecursive().forEach((f) => f && f.open && f.open());
+    }
   }
 
   // ---- 交互状态 ----
@@ -408,11 +417,20 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   let currentSideMats = [];
   let groups = []; // 当前层级所有区域 group（用于平滑上浮/回落动画）
 
-  // 地名 / 提示文案做多语言：若语言包里有 "chinaProvince.<名>" 用翻译，否则用原名（专有名词兜底）
+  // 地名 / 提示文案做多语言：优先复用现有 city.<名>（飞行线城市库，含各大省会/主要城市），
+  // 其次 chinaProvince.<全名>；都无翻译则回退原名（专有名词兜底）。
   function tName(name) {
-    const key = "chinaProvince." + name;
-    const v = t(key);
-    return v === key ? name : v;
+    if (!name) return name;
+    const stripped = String(name).replace(/(特别行政区|自治区|自治州|自治县|地区|盟|省|市|州|县|区|旗)$/, "");
+    const cv = t("city." + stripped);
+    if (cv !== "city." + stripped) return cv;
+    const pv = t("chinaProvince." + name);
+    if (pv !== "chinaProvince." + name) return pv;
+    if (stripped !== name) {
+      const pv2 = t("chinaProvince." + stripped);
+      if (pv2 !== "chinaProvince." + stripped) return pv2;
+    }
+    return name;
   }
 
   function makeDistrict(shape, topMat, sideMat) {
