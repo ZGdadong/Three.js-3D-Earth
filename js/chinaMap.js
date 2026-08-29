@@ -912,6 +912,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
 
   const header = document.createElement("div");
   header.id = "chinaHeader";
+  header.style.display = "none"; // 初始处于地球模式，顶栏隐藏；进入中国地图时由 setActive(true) 显示
   document.body.appendChild(header);
 
   const titleEl = document.createElement("span");
