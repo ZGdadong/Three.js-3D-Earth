@@ -22,6 +22,12 @@ const D2R = Math.PI / 180;
 const degToRad = THREE.MathUtils.degToRad;
 const DEPTH = 0.35; // 挤出高度
 
+// 中国地形的参考地理包围盒（Mercator 原始坐标系），用于把地形贴图对齐到地图
+const CHINA_RX_MIN = 1.2828581027197166;
+const CHINA_RX_MAX = 2.357864246687728;
+const CHINA_RY_MIN = 0.0667837005400493;
+const CHINA_RY_MAX = 1.111276654322306;
+
 function rawX(lon) {
   return lon * D2R;
 }
@@ -62,16 +68,20 @@ function makeProjection(features, S = 10) {
   const scale = S / Math.max(w, h || 1);
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
-  return function proj(lon, lat) {
+  const proj = function proj(lon, lat) {
     return [(rawX(lon) - cx) * scale, (rawY(lat) - cy) * scale];
   };
+  proj.cx = cx;
+  proj.cy = cy;
+  proj.scale = scale;
+  return proj;
 }
 
 function hasLocalData(code) {
   return code && /^\d{6}$/.test(String(code));
 }
 
-// ---- 区域顶面材质：深蓝基调 + 辉光 + 扫描能量波 + 悬停变亮 ----
+// ---- 区域顶面材质：深蓝基调 + 地形贴图(山/河) + 辉光 + 扫描波 + 悬停变亮 ----
 function createTopMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -83,11 +93,17 @@ function createTopMaterial() {
       uScanWidth: { value: 0.5 },
       uScanColor: { value: new THREE.Color(0x57e0ff) },
       uScanIntensity: { value: 0 },
+      uTerrain: { value: 0.85 }, // 地形贴图强度
+      uTex: { value: null }, // 地形贴图
+      uUvScale: { value: new THREE.Vector2(1, 1) },
+      uUvOffset: { value: new THREE.Vector2(0, 0) },
     },
     vertexShader: /* glsl */ `
       varying vec3 vWorldPos;
+      varying vec2 vUv;
       void main() {
         vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+        vUv = uv;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -100,9 +116,17 @@ function createTopMaterial() {
       uniform float uScanWidth;
       uniform vec3 uScanColor;
       uniform float uScanIntensity;
+      uniform float uTerrain;
+      uniform sampler2D uTex;
+      uniform vec2 uUvScale;
+      uniform vec2 uUvOffset;
       varying vec3 vWorldPos;
+      varying vec2 vUv;
       void main() {
         vec3 col = mix(uColor, uGlow, uGlowAmount * 0.55);
+        // 地形贴图（山/河）：按灰度做明暗，叠加到区域上
+        vec3 relief = texture2D(uTex, vUv * uUvScale + uUvOffset).rgb;
+        col *= mix(vec3(1.0), relief, uTerrain);
         col = mix(col, uGlow, uHover); // 悬停变亮
         float d = abs(vWorldPos.z - uScan);
         float scan = exp(-pow(d / uScanWidth, 2.0));
@@ -268,11 +292,20 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   const root = new THREE.Group();
   scene.add(root);
 
+  // ---- 地形贴图（山/河）：中国灰度地形（可着色）----
+  const terrainTex = new THREE.TextureLoader().load("./images/china_terrain.png");
+  terrainTex.colorSpace = THREE.SRGBColorSpace;
+  terrainTex.anisotropy = 4;
+  terrainTex.magFilter = THREE.LinearFilter;
+  terrainTex.minFilter = THREE.LinearMipmapLinearFilter;
+
   // ---- 可调参数（供 lil-gui 面板）----
   const chinaParams = {
     // 显示
     glow: 0.4,
     float: 0.24,
+    terrain: true,
+    terrainAmount: 0.85,
     // 旋转圆环
     ringColor: "#3fd0ff",
     ringOpacity: 0.72,
@@ -327,6 +360,8 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     const fView = chinaGui.addFolder(t("china.folderView"));
     fView.add(chinaParams, "glow", 0, 1, 0.02).name(t("china.glow"));
     fView.add(chinaParams, "float", 0, 0.6, 0.02).name(t("china.float"));
+    fView.add(chinaParams, "terrain", true).name(t("china.terrain"));
+    fView.add(chinaParams, "terrainAmount", 0, 1, 0.02).name(t("china.terrainAmount"));
 
     const fRing = chinaGui.addFolder(t("china.folderRing"));
     fRing.addColor(chinaParams, "ringColor").name(t("china.ringColor"));
@@ -513,6 +548,15 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       const topMat = createTopMaterial();
       const sideMat = createSideMaterial();
       topMat.uniforms.uGlowAmount.value = chinaParams.glow;
+      // 地形贴图：绑定纹理并按当前投影把 shape 坐标映射到中国地形贴图
+      topMat.uniforms.uTex.value = terrainTex;
+      const uScaleX = 1 / (proj.scale * (CHINA_RX_MAX - CHINA_RX_MIN));
+      const uOffsetX = (proj.cx - CHINA_RX_MIN) / (CHINA_RX_MAX - CHINA_RX_MIN);
+      const uScaleY = 1 / (proj.scale * (CHINA_RY_MAX - CHINA_RY_MIN));
+      const uOffsetY = (proj.cy - CHINA_RY_MIN) / (CHINA_RY_MAX - CHINA_RY_MIN);
+      topMat.uniforms.uUvScale.value.set(uScaleX, uScaleY);
+      topMat.uniforms.uUvOffset.value.set(uOffsetX, uOffsetY);
+      topMat.uniforms.uTerrain.value = chinaParams.terrain ? chinaParams.terrainAmount : 0;
       g.userData = { name: props.name, adcode: props.adcode, level: levelName, topMat, sideMat, targetY: 0 };
       currentTopMats.push(topMat);
       currentSideMats.push(sideMat);
@@ -735,8 +779,12 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       }
     }
 
-    // 辉光强度
-    for (const m of currentTopMats) m.uniforms.uGlowAmount.value = chinaParams.glow;
+    // 辉光强度 + 地形强度
+    const terrAmt = chinaParams.terrain ? chinaParams.terrainAmount : 0;
+    for (const m of currentTopMats) {
+      m.uniforms.uGlowAmount.value = chinaParams.glow;
+      m.uniforms.uTerrain.value = terrAmt;
+    }
 
     // ---- 扫描能量波（从下到上，带"扫动+空档"）----
     scanPhase += delta * chinaParams.scanSpeed;

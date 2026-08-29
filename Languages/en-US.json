@@ -126,6 +126,8 @@
     "china.folderView": "Display",
     "china.glow": "Glow",
     "china.float": "Float height",
+    "china.terrain": "Terrain",
+    "china.terrainAmount": "Terrain strength",
     "china.folderRing": "Rotating rings",
     "china.ringColor": "Ring color",
     "china.ringOpacity": "Ring opacity",

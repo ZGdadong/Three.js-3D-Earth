@@ -126,6 +126,8 @@
     "china.folderView": "显示",
     "china.glow": "辉光强度",
     "china.float": "悬浮高度",
+    "china.terrain": "显示地形",
+    "china.terrainAmount": "地形强度",
     "china.folderRing": "旋转圆环",
     "china.ringColor": "圆环颜色",
     "china.ringOpacity": "圆环透明度",
