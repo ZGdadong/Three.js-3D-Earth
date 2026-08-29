@@ -460,7 +460,7 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 
 ## 14. 中国地图（省市下钻 + 地形 + 扫描）
 
-> 除了上面的地球，项目还内置了一个**可切换的中国地图**场景（右上角按钮「🗺️ 中国地图 / 🌍 地球」）。它独立于地球场景，拥有自己的 `scene / camera / controls`，由 `main.js` 的 `mode` 决定渲染哪套场景。核心代码在 `js/chinaMap.js`。
+> 除了上面的地球，项目还内置了一个**可切换的中国地图**场景（右下角按钮「🗺️ 中国地图 / 🌍 地球」）。它独立于地球场景，拥有自己的 `scene / camera / controls`，由 `main.js` 的 `mode` 决定渲染哪套场景。核心代码在 `js/chinaMap.js`。
 
 ### 14.1 数据与投影
 - 数据：`data/geojson/` 下本地打包全国（`100000_full.json`）+ 各省（`{adcode}_full.json`）GeoJSON，**离线可用**；首次进入中国模式用 `fetch` 按需加载并缓存到 `cache`（`loadFeatures`）。
