@@ -164,7 +164,7 @@
     "china.gridDotOn": "显示圆点.",
     "china.gridDotColor": "圆点颜色",
     "china.gridDotSize": "圆点大小",
-    "china.gridDotSpacing": "圆点间隔",
+    "china.gridDotSpacing": "圆点细分数(每格)",
     "chinaProvince.北京市": "北京市",
     "chinaProvince.天津市": "天津市",
     "chinaProvince.河北省": "河北省",

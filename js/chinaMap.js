@@ -334,12 +334,15 @@ function buildGridDecor(cfg) {
 
   if (cfg.dotOn) {
     const positions = [];
-    const ds = Math.max(1, Math.round(cfg.dotSpacing));
-    // 圆点放在“格子中心”，与交点“+”错开，互不重叠
-    for (let i = 0; i < div; i += ds) {
-      for (let j = 0; j < div; j += ds) {
-        const x = -half + (i + 0.5) * spacing;
-        const z = -half + (j + 0.5) * spacing;
+    // 把每个原始格子再细分成 dotSpacing 份，圆点放在细分后的小格顶点上。
+    // 若把这些点连起来，正好把原格子切成更多小格子；但只是放点、不连线。
+    const sub = Math.max(1, Math.round(cfg.dotSpacing));
+    const subDiv = div * sub;
+    const subSpacing = spacing / sub;
+    for (let i = 0; i <= subDiv; i++) {
+      for (let j = 0; j <= subDiv; j++) {
+        const x = -half + i * subSpacing;
+        const z = -half + j * subSpacing;
         positions.push(x, 0, z);
       }
     }
@@ -819,7 +822,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       .name(t("china.gridDotSize"))
       .onChange(() => rebuildGridDecor());
     fGrid
-      .add(chinaParams.grid, "dotSpacing", 1, 10, 1)
+      .add(chinaParams.grid, "dotSpacing", 1, 6, 1)
       .name(t("china.gridDotSpacing"))
       .onChange(() => rebuildGridDecor());
 
