@@ -282,6 +282,85 @@ function makeFloor(gridCfg) {
   return { group, ringHolders: [holderA, holderB], gridMesh: grid };
 }
 
+// ---- 栅格美术装饰：交点“+” + 圆点“.” ----
+let _dotTexture = null;
+function getDotTexture() {
+  if (_dotTexture) return _dotTexture;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d");
+  const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.45, "rgba(255,255,255,0.9)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(32, 32, 32, 0, Math.PI * 2);
+  ctx.fill();
+  _dotTexture = new THREE.CanvasTexture(c);
+  return _dotTexture;
+}
+
+// 在网格每个交点放一个“+”（两条交叉短线），并间隔放置圆点“.”，组成装饰层
+function buildGridDecor(cfg) {
+  const g = new THREE.Group();
+  const size = cfg.size;
+  const div = cfg.divisions;
+  const spacing = size / div;
+  const half = size / 2;
+
+  if (cfg.plusOn) {
+    const positions = [];
+    const s = cfg.plusSize;
+    for (let i = 0; i <= div; i++) {
+      for (let j = 0; j <= div; j++) {
+        const x = -half + i * spacing;
+        const z = -half + j * spacing;
+        positions.push(x - s, 0, z, x + s, 0, z); // 横臂
+        positions.push(x, 0, z - s, x, 0, z + s); // 竖臂
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.LineBasicMaterial({
+      color: cfg.plusColor,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    g.add(new THREE.LineSegments(geo, mat));
+  }
+
+  if (cfg.dotOn) {
+    const positions = [];
+    const ds = Math.max(1, Math.round(cfg.dotSpacing));
+    // 圆点放在“格子中心”，与交点“+”错开，互不重叠
+    for (let i = 0; i < div; i += ds) {
+      for (let j = 0; j < div; j += ds) {
+        const x = -half + (i + 0.5) * spacing;
+        const z = -half + (j + 0.5) * spacing;
+        positions.push(x, 0, z);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: cfg.dotColor,
+      size: Math.max(0.03, cfg.dotSize * 2), // size 是直径（世界单位）
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.95,
+      map: getDotTexture(),
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      alphaTest: 0.01,
+    });
+    g.add(new THREE.Points(geo, mat));
+  }
+  return g;
+}
+
 export function createChinaMap({ container, rendererDom, width, height }) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x050a18);
@@ -451,6 +530,15 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       colorLine: "#1a4a70", // 细线颜色
       opacity: 0.28, // 栅格透明度
       height: -0.005, // 栅格高度（相对发光圆盘）
+      // 交点“+”
+      plusOn: true,
+      plusColor: "#9fd4ff", // “+”颜色
+      plusSize: 0.2, // “+”臂半长（世界单位）
+      // 圆点“.”
+      dotOn: true,
+      dotColor: "#7fd0ff", // 圆点颜色
+      dotSize: 0.055, // 圆点半径（世界单位）
+      dotSpacing: 2, // 圆点间隔（每几个格子放一个点）
     },
   };
 
@@ -578,6 +666,16 @@ export function createChinaMap({ container, rendererDom, width, height }) {
 
   // 底部栅格：size/divisions/颜色 变化需重建几何；opacity/height 可直接实时更新
   let gridMesh = floor.gridMesh;
+  let gridDecor = null;
+  function disposeObject(o) {
+    o.traverse((c) => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) {
+        if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+        else c.material.dispose();
+      }
+    });
+  }
   function rebuildGrid() {
     const old = gridMesh;
     if (old) {
@@ -595,12 +693,25 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     applyGridStyle(g, chinaParams.grid.opacity);
     floor.group.add(g);
     gridMesh = g;
+    rebuildGridDecor();
+  }
+  function rebuildGridDecor() {
+    if (gridDecor) {
+      disposeObject(gridDecor);
+      floor.group.remove(gridDecor);
+    }
+    const d = buildGridDecor(chinaParams.grid);
+    d.position.y = chinaParams.grid.height;
+    floor.group.add(d);
+    gridDecor = d;
   }
   function updateGrid() {
     if (!gridMesh) return;
     gridMesh.position.y = chinaParams.grid.height;
     applyGridStyle(gridMesh, chinaParams.grid.opacity);
+    if (gridDecor) gridDecor.position.y = chinaParams.grid.height;
   }
+  rebuildGridDecor(); // 初始构建交点“+”/圆点“.”装饰层
 
   let ringMeshes = [];
   const RING_RADII = [5.6, 6.4]; // 内圈 / 外圈半径
@@ -693,6 +804,24 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       .add(chinaParams.grid, "height", -0.5, 0.5, 0.005)
       .name(t("china.gridHeight"))
       .onChange(() => updateGrid());
+    // 交点“+”
+    fGrid.add(chinaParams.grid, "plusOn").name(t("china.gridPlusOn")).onChange(() => rebuildGridDecor());
+    fGrid.addColor(chinaParams.grid, "plusColor").name(t("china.gridPlusColor")).onChange(() => rebuildGridDecor());
+    fGrid
+      .add(chinaParams.grid, "plusSize", 0.05, 1, 0.01)
+      .name(t("china.gridPlusSize"))
+      .onChange(() => rebuildGridDecor());
+    // 圆点“.”
+    fGrid.add(chinaParams.grid, "dotOn").name(t("china.gridDotOn")).onChange(() => rebuildGridDecor());
+    fGrid.addColor(chinaParams.grid, "dotColor").name(t("china.gridDotColor")).onChange(() => rebuildGridDecor());
+    fGrid
+      .add(chinaParams.grid, "dotSize", 0.02, 0.4, 0.005)
+      .name(t("china.gridDotSize"))
+      .onChange(() => rebuildGridDecor());
+    fGrid
+      .add(chinaParams.grid, "dotSpacing", 1, 10, 1)
+      .name(t("china.gridDotSpacing"))
+      .onChange(() => rebuildGridDecor());
 
     // 参数保存 / 载入 / 导入 / 恢复默认 / 导出（与地球一致）
     const fSave = chinaGui.addFolder(t("folder.save"));
