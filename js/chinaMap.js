@@ -198,28 +198,35 @@ function createSideMaterial() {
   });
 }
 
-// ---- 单个圆环（带缺口），半径为 radius，铺在 XZ 平面 ----
-function buildRingMesh(params, radius) {
-  const halfW = params.ringWidth / 2;
+// ---- 单个圆环（带 N 个均匀分布缺口），半径为 radius，铺在 XZ 平面 ----
+function buildRingMesh(cfg, radius) {
+  const halfW = cfg.width / 2;
   const inner = Math.max(0.02, radius - halfW);
   const outer = radius + halfW;
-  // 缺口从 ringGapStart 开始、跨 ringGap 度；实体部分其余都为几何（并防止跨 0°/缠绕）
-  const start = ((params.ringGapStart % 360) + 360) % 360;
-  const gap = Math.max(1, Math.min(params.ringGap, 360 - start));
-  const thetaStart = degToRad(start + gap);
-  const thetaLength = degToRad(Math.max(1, 360 - gap));
-  const geo = new THREE.RingGeometry(inner, outer, 160, 1, thetaStart, thetaLength);
+  // 等分份数 = 缺口数量：把圆环分成 n 段，每段边界处留一个缺口
+  const n = Math.max(1, Math.round(cfg.gapCount || 1));
+  const slot = 360 / n; // 每段的角度
+  const gapDeg = Math.max(1, Math.min(cfg.gap || 30, slot - 1)); // 单个缺口大小（度）
+  const arc = slot - gapDeg; // 每段实际绘制的角度
   const mat = new THREE.MeshBasicMaterial({
-    color: params.ringColor,
+    color: cfg.color,
     transparent: true,
-    opacity: params.ringOpacity,
+    opacity: cfg.opacity,
     side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.rotation.x = -Math.PI / 2;
-  return mesh;
+  // n 段弧拼成一整圈，段与段之间就是均匀分布的缺口
+  const group = new THREE.Group();
+  for (let i = 0; i < n; i++) {
+    const thetaStart = degToRad(i * slot);
+    const geo = new THREE.RingGeometry(inner, outer, 160, 1, thetaStart, degToRad(arc));
+    const m = new THREE.Mesh(geo, mat);
+    group.add(m);
+  }
+  group.rotation.x = -Math.PI / 2;
+  group.userData.material = mat; // 供 update() 更新颜色/透明度
+  return group;
 }
 
 // ---- 发光渐变圆盘 ----
@@ -307,13 +314,25 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     float: 0.24,
     terrain: true,
     terrainAmount: 0.85,
-    // 旋转圆环
-    ringColor: "#3fd0ff",
-    ringOpacity: 0.72,
-    ringWidth: 0.28,
-    ringGap: 55, // 缺口大小（度）
-    ringGapStart: 120, // 缺口起始位置（度）
-    ringSpeed: 0.45,
+    // 两圈旋转圆环（各自独立设置）
+    ring1: {
+      visible: true,
+      color: "#3fd0ff",
+      opacity: 0.72,
+      width: 0.28,
+      gapCount: 3, // 等分份数 = 缺口数量：3 = 每 1/3 有一个缺口
+      gap: 55, // 单个缺口大小（度）
+      speed: 0.45,
+    },
+    ring2: {
+      visible: true,
+      color: "#2fb9e8",
+      opacity: 0.55,
+      width: 0.2,
+      gapCount: 4, // 每 1/4 有一个缺口
+      gap: 40,
+      speed: 0.3,
+    },
     // 整图扫描能量波（从下到上扫过）
     scanOn: true,
     scanSpeed: 0.25,
@@ -333,21 +352,27 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   scene.add(floor.group);
 
   let ringMeshes = [];
-  function applyRings() {
-    ringMeshes.forEach((m) => {
-      m.geometry.dispose();
-      m.material.dispose();
+  const RING_RADII = [5.6, 6.4]; // 内圈 / 外圈半径
+  function disposeRingGroup(g) {
+    g.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
     });
+    const mat = g.userData.material; // 一圈里的所有段共享同一材质
+    if (mat) mat.dispose();
+  }
+  function applyRings() {
+    ringMeshes.forEach((g) => disposeRingGroup(g));
     // 先从支架上移除旧圆环
     floor.ringHolders.forEach((h) => {
       while (h.children.length) h.remove(h.children[0]);
     });
     ringMeshes = [];
-    [5.6, 6.4].forEach((radius, i) => {
-      const mesh = buildRingMesh(chinaParams, radius);
-      mesh.position.y = 0.02;
-      floor.ringHolders[i].add(mesh);
-      ringMeshes.push(mesh);
+    const cfgs = [chinaParams.ring1, chinaParams.ring2];
+    cfgs.forEach((cfg, i) => {
+      const g = buildRingMesh(cfg, RING_RADII[i]);
+      g.position.y = 0.02;
+      floor.ringHolders[i].add(g);
+      ringMeshes.push(g);
     });
   }
   applyRings();
@@ -365,12 +390,17 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     fView.add(chinaParams, "terrainAmount", 0, 1, 0.02).name(t("china.terrainAmount"));
 
     const fRing = chinaGui.addFolder(t("china.folderRing"));
-    fRing.addColor(chinaParams, "ringColor").name(t("china.ringColor"));
-    fRing.add(chinaParams, "ringOpacity", 0, 1, 0.01).name(t("china.ringOpacity"));
-    fRing.add(chinaParams, "ringWidth", 0.02, 1.5, 0.02).name(t("china.ringWidth"));
-    fRing.add(chinaParams, "ringGap", 0, 360, 1).name(t("china.ringGap"));
-    fRing.add(chinaParams, "ringGapStart", 0, 360, 1).name(t("china.ringGapStart"));
-    fRing.add(chinaParams, "ringSpeed", 0, 2, 0.05).name(t("china.ringSpeed"));
+    const ringCfgs = [chinaParams.ring1, chinaParams.ring2];
+    ringCfgs.forEach((cfg, idx) => {
+      const sub = fRing.addFolder(idx === 0 ? t("china.ring1") : t("china.ring2"));
+      sub.add(cfg, "visible").name(t("china.ringVisible"));
+      sub.addColor(cfg, "color").name(t("china.ringColor"));
+      sub.add(cfg, "opacity", 0, 1, 0.01).name(t("china.ringOpacity"));
+      sub.add(cfg, "width", 0.02, 1.5, 0.02).name(t("china.ringWidth"));
+      sub.add(cfg, "gapCount", 1, 8, 1).name(t("china.ringGapCount"));
+      sub.add(cfg, "gap", 1, 180, 1).name(t("china.ringGap"));
+      sub.add(cfg, "speed", 0, 2, 0.05).name(t("china.ringSpeed"));
+    });
 
     const fScan = chinaGui.addFolder(t("china.folderScan"));
     fScan.add(chinaParams, "scanOn", true).name(t("china.scanOn"));
@@ -411,7 +441,9 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   let clickTimer = null;
   let scanPhase = 0;
   let sideScanPhase = 0;
-  let lastRingKey = "";
+  let lastRingKey = [chinaParams.ring1, chinaParams.ring2]
+    .map((c) => `${c.width}|${c.gapCount}|${c.gap}`)
+    .join(";");
 
   // ---- DOM ----
   const tooltip = document.createElement("div");
@@ -824,17 +856,24 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       m.uniforms.uSideScanIntensity.value = sideScanIntensity;
     }
 
-    // ---- 旋转圆环 ----
-    const bSpeed = chinaParams.ringSpeed;
-    floor.ringHolders[0].rotation.y += delta * bSpeed;
-    floor.ringHolders[1].rotation.y -= delta * bSpeed;
-    // 颜色 / 透明度
-    for (const m of ringMeshes) {
-      m.material.color.set(chinaParams.ringColor);
-      m.material.opacity = chinaParams.ringOpacity;
-    }
-    // 几何参数（缺口 / 宽度 / 起始角）变化时重建
-    const ringKey = `${chinaParams.ringWidth}|${chinaParams.ringGap}|${chinaParams.ringGapStart}`;
+    // ---- 旋转圆环（两圈各自独立设置）----
+    const ringCfgs = [chinaParams.ring1, chinaParams.ring2];
+    ringCfgs.forEach((cfg, i) => {
+      // 内圈正向、外圈反向；每圈独立速度
+      floor.ringHolders[i].rotation.y += delta * cfg.speed * (i === 0 ? 1 : -1);
+    });
+    // 颜色 / 透明度 / 显隐（无需重建）
+    ringMeshes.forEach((g, i) => {
+      const mat = g.userData.material;
+      const cfg = ringCfgs[i];
+      if (mat) {
+        mat.color.set(cfg.color);
+        mat.opacity = cfg.opacity;
+      }
+      g.visible = cfg.visible;
+    });
+    // 几何参数（宽度 / 等分份数 / 缺口大小）变化时重建
+    const ringKey = ringCfgs.map((c) => `${c.width}|${c.gapCount}|${c.gap}`).join(";");
     if (ringKey !== lastRingKey) {
       lastRingKey = ringKey;
       applyRings();

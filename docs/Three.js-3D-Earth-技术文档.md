@@ -481,7 +481,10 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 
 ### 14.4 底部台面（发光圆盘 + 栅格 + 圆环）
 - 发光渐变**圆盘**（径向渐变的 Canvas 贴图）+ `GridHelper` 栅格。
-- 两圈**可带缺口的旋转圆环**：`RingGeometry(inner, outer, …, thetaStart, thetaLength)`，用 `ringGapStart`（缺口起始角）与 `ringGap`（缺口大小）控制缺口；颜色/透明度/宽度/转速均可调，绕 Y 轴反向旋转。
+- 两圈**可带缺口的旋转圆环**，**各自独立设置**（`chinaParams.ring1` 内圈 / `ring2` 外圈）：每圈有 `visible/color/opacity/width/gapCount/gap/speed`。
+  - **等分缺口**：`gapCount` 表示"每 1/N 一个缺口"。实现上把圆环分成 `n` 段，每段是一段 `RingGeometry(inner, outer, …, thetaStart=i*(360/n), thetaLength=360/n-gap)`，段与段之间就是均匀分布的缺口。所以 `gapCount=3` → 每 1/3 一个缺口（共 3 个），`gapCount=4` → 每 1/4 一个缺口（共 4 个）。
+  - `gap` 是**单个缺口的角度**；`width/opacity/color` 直接生效，`width/gapCount/gap` 改变时**重建**几何。
+  - 内圈正向、外圈反向旋转，各圈速度独立。
 
 ### 14.5 扫描能量波（两道）
 - **整图扫描**：沿**世界 Z（地图南北）**从下到上扫过（`uScan`），带"扫动 + 空档"的 reveal。
