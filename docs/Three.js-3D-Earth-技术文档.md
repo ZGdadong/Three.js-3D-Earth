@@ -457,3 +457,52 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 - **法线贴图看不到效果**：没调 `normalStrength`（=0 会关闭），或没 `computeTangents()`。
 - **飞线在地球背面也显示**：飞线材质不要设 `depthTest:false`，否则会被"透视"画出来；应设 `depthTest:true` 让地球遮挡背面飞线。
 ```
+
+---
+
+## 14. 中国地图（省市下钻 + 地形 + 扫描）
+
+> 除了上面的地球，项目还内置了一个**可切换的中国地图**场景（右上角按钮「🗺️ 中国地图 / 🌍 地球」）。它独立于地球场景，拥有自己的 `scene / camera / controls`，由 `main.js` 的 `mode` 决定渲染哪套场景。核心代码在 `js/chinaMap.js`。
+
+### 14.1 数据与投影
+- 数据：`data/geojson/` 下本地打包全国（`100000_full.json`）+ 各省（`{adcode}_full.json`）GeoJSON，**离线可用**；首次进入中国模式用 `fetch` 按需加载并缓存到 `cache`（`loadFeatures`）。
+- 投影：先把经纬度做 **Mercator** 近似（`rawX`/`rawY`），再按当前层级的包围盒**归一化**到以原点为中心、最大跨度为 `S=10` 的平面（`makeProjection`），保证全国与下钻后视口一致。
+
+### 14.2 挤出式区域 + 材质（★ 重点）
+- 每个特征（省/市/区）建一个 `THREE.Group`（便于整体上浮/高亮），组内每个环（ring）用 `Shape → ExtrudeGeometry`（`depth=0.35` + 倒角）挤出成有厚度的块，再 `rotation.x = -π/2` 摊平到 XZ 平面。
+- **顶面材质**（`createTopMaterial`）：`ShaderMaterial` —— 深蓝基调 + 地形贴图（灰度明暗乘到颜色上）+ 辉光；悬停时**提亮并加青光但保留地形**（避免整片盖成纯色）。
+- **侧面材质**（`createSideMaterial`）：`ShaderMaterial` —— 底部深蓝 → 顶部青蓝的**垂直渐变**（`mix(uBase,uTop,h*h)`）；悬停时 `mix(col,uHover,uH*h)` 按高度因子增亮，**保留黑→蓝→亮的纵深**。
+- **边界线**：每个环用青色 `THREE.LineLoop`（加色混合）画在顶面上方 `y=0.45` 处。
+
+### 14.3 地形贴图（山川河流）
+- 用 `images/china_terrain.png`（中国灰度地势/晕渲图）作为顶面贴图。
+- 对齐方式：顶面片元里 `relief = texture2D(uTex, vUv*uUvScale + uUvOffset)`；`uUvScale/uUvOffset` 由**当前层级的投影参数（`proj.cx/cy/scale`）与固定的中国 Mercator 地理包围盒**（`CHINA_RX_*` / `CHINA_RY_*`）算出，使 x/y 坐标反推出经纬度再映射到贴图 —— 因此全国与下钻省份的地形**都对齐且连贯**。
+- 「显示」面板可调**地形开关 / 地形强度**。
+
+### 14.4 底部台面（发光圆盘 + 栅格 + 圆环）
+- 发光渐变**圆盘**（径向渐变的 Canvas 贴图）+ `GridHelper` 栅格。
+- 两圈**可带缺口的旋转圆环**：`RingGeometry(inner, outer, …, thetaStart, thetaLength)`，用 `ringGapStart`（缺口起始角）与 `ringGap`（缺口大小）控制缺口；颜色/透明度/宽度/转速均可调，绕 Y 轴反向旋转。
+
+### 14.5 扫描能量波（两道）
+- **整图扫描**：沿**世界 Z（地图南北）**从下到上扫过（`uScan`），带"扫动 + 空档"的 reveal。
+- **侧面扫描**：沿挤出块的**高度**（`vPos.z`，0→`DEPTH`）从底到顶扫过（`uSideScan`）。
+- 两者都在「扫描能量波」文件夹里可开关、调速度/宽度/强度/颜色。
+
+### 14.6 交互（悬停 / 下钻 / 返回）
+- **悬停**：射线拾取区域 `group`，**90ms 防抖**（跨区域不抖动）+ 目标高度平滑逼近（`targetY`，`update()` 里 `1-e^{-3.2Δt}` 约 1 秒缓和），悬停上浮 + 高亮 + 浮出名称。
+- **单击**（判定非拖拽后 300ms）：下钻进该省；**双击**：返回上一级；也可点左上角「← 返回」。
+- 点击拾取时关闭边界线/标签的 `raycast`（`line.raycast = () => {}`），只命中区域网格。
+
+### 14.7 多语言
+- 中国地图所有 UI 文案（面板、标题、返回、加载、提示）都走 `t()`，**和地球共用同一个** `Languages/*.json`。
+- 区域名用 `tName()` 助手：先去行政后缀（市/省/自治区…）后**复用 `city.*`**（飞行线城市库，含各大省会/主要城市），再 `chinaProvince.*`，都无翻译才回退原名 → 中文区名也随语言切换。
+
+### 14.8 视图切换与面板
+- `main.js` 里 `let mode = 'earth'`；`animate()` 按 `mode` 分支渲染 `earth` 或 `chinaMap` 场景；切换时**只启用对应一组 OrbitControls**。
+- 进入中国地图时用 JS 隐藏地球 lil-gui、显示中国地图的 `.china-gui` 面板（三个文件夹：显示 / 旋转圆环 / 扫描能量波），离开再切回。
+
+### 14.9 常见坑（中国地图）
+- **`Cannot access 'mode' before initialization`**：`mode` 用 `let` 声明且 `applyLanguage()`（在 `initI18n` 的语言回调里触发）会读它 —— 必须把 `let mode` **声明在 `initI18n()` 之前**，否则 TDZ 报错并弄崩多语言。
+- **地形悬停消失**：顶面片元之前 `col = mix(col, uGlow, uHover)` 会把地形整片盖成纯色；应改为**提亮 + 加辉光**（`col*(1+uHover*0.3)+uGlow*uHover*0.5`）。
+- **圆环累积**：重建圆环几何前要先从 holder 里 `remove` 旧的并 dispose，否则旧圆环会不断堆积。
+- **侧面展开变纯色**：侧面悬停要用 `uH`（量化值）并按高度 `h` 缩放，不要把颜色 uniform 当成量化值。

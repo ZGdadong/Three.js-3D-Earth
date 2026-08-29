@@ -127,7 +127,8 @@ function createTopMaterial() {
         // 地形贴图（山/河）：按灰度做明暗，叠加到区域上
         vec3 relief = texture2D(uTex, vUv * uUvScale + uUvOffset).rgb;
         col *= mix(vec3(1.0), relief, uTerrain);
-        col = mix(col, uGlow, uHover); // 悬停变亮
+        // 悬停：提亮 + 加青光，但保留地形纹理（不要整片盖成纯色）
+        col = col * (1.0 + uHover * 0.3) + uGlow * uHover * 0.5;
         float d = abs(vWorldPos.z - uScan);
         float scan = exp(-pow(d / uScanWidth, 2.0));
         col += uScanColor * scan * uScanIntensity;
