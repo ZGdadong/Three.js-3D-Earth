@@ -477,7 +477,9 @@ mat.uniforms.uOpacity.value = waveOpacity; // 扩散波透明度
 ### 14.3 地形贴图（山川河流）
 - 用 `images/china_terrain.png`（中国灰度地势/晕渲图）作为顶面贴图。
 - 对齐方式：顶面片元里 `relief = texture2D(uTex, vUv*uUvScale + uUvOffset)`；`uUvScale/uUvOffset` 由**当前层级的投影参数（`proj.cx/cy/scale`）与固定的中国 Mercator 地理包围盒**（`CHINA_RX_*` / `CHINA_RY_*`）算出，使 x/y 坐标反推出经纬度再映射到贴图 —— 因此全国与下钻省份的地形**都对齐且连贯**。
-- 「显示」面板可调**地形开关 / 地形强度**。
+- 「显示」面板可调**地形开关 / 地形强度**、**挤出厚度 / 轮廓放大**。
+  - **挤出厚度**（`chinaParams.depth`，默认 0.35）：每个挤出块的高度（`shape→ExtrudeGeometry depth`，同时也作为侧面材质的 `uDepth` uniform 归一化渐变与侧面扫描）。
+  - **轮廓放大**（`chinaParams.bevel`，默认 0.06）：`ExtrudeGeometry` 的 `bevelSize/bevelThickness`，会在每个块的外轮廓再向外扩一圈。**对投影后本就很小的小岛（如三沙/南沙诸岛）放大非常明显**——把 bevel 调小、depth 调薄，小岛块就不会显得过大、也不会连成一片。改变两者会**重绘当前层级**（`rebuildLevel()`）。
 
 ### 14.4 底部台面（发光圆盘 + 栅格 + 圆环）
 - 发光渐变**圆盘**（径向渐变的 Canvas 贴图）+ `GridHelper` 栅格。

@@ -128,6 +128,8 @@
     "china.float": "Float height",
     "china.terrain": "Terrain",
     "china.terrainAmount": "Terrain strength",
+    "china.depth": "Extrusion thickness",
+    "china.bevel": "Outline (bevel)",
     "china.folderRing": "Rotating rings",
     "china.ring1": "Ring 1 (inner)",
     "china.ring2": "Ring 2 (outer)",

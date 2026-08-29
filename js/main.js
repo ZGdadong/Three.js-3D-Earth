@@ -929,6 +929,11 @@ let gui = null;
 function buildGui() {
   if (gui) gui.destroy();
   gui = new GUI({ title: t("gui.title") });
+  // 把地球面板定位到语言条（右上角）下方，避免盖住多语言切换；位置与中国地图面板一致
+  gui.domElement.style.position = "fixed";
+  gui.domElement.style.right = "12px";
+  gui.domElement.style.top = "70px";
+  gui.domElement.style.zIndex = "15";
 
   // 昼夜 / 时段
   const fDay = gui.addFolder(t("folder.day"));

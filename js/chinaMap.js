@@ -20,7 +20,6 @@ import { t } from "./i18n.js";
 
 const D2R = Math.PI / 180;
 const degToRad = THREE.MathUtils.degToRad;
-const DEPTH = 0.35; // 挤出高度
 
 // 中国地形的参考地理包围盒（Mercator 原始坐标系），用于把地形贴图对齐到地图
 const CHINA_RX_MIN = 1.2828581027197166;
@@ -154,6 +153,7 @@ function createSideMaterial() {
       uSideScanWidth: { value: 0.08 },
       uSideScanColor: { value: new THREE.Color(0x4fd0ff) },
       uSideScanIntensity: { value: 0 },
+      uDepth: { value: 0.35 }, // 挤出厚度（块的高度），用于按高度归一化渐变
     },
     vertexShader: /* glsl */ `
       varying vec3 vPos;
@@ -177,10 +177,11 @@ function createSideMaterial() {
       uniform float uSideScanWidth;
       uniform vec3 uSideScanColor;
       uniform float uSideScanIntensity;
+      uniform float uDepth;
       varying vec3 vPos;
       varying vec3 vWorldPos;
       void main() {
-        float h = clamp(vPos.z / ${DEPTH.toFixed(3)}, 0.0, 1.0);
+        float h = clamp(vPos.z / max(uDepth, 0.0001), 0.0, 1.0);
         // 底部深、顶部亮的垂直渐变（悬停时越靠顶部越亮，底部保持沉底的深色）
         vec3 col = mix(uBase, uTop, h * h);
         col = mix(col, uHover, uH * h);
@@ -314,6 +315,8 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     float: 0.24,
     terrain: true,
     terrainAmount: 0.85,
+    depth: 0.35, // 挤出厚度（块的高度）
+    bevel: 0.06, // 轮廓放大（倒角），越小块越接近真实面积
     // 两圈旋转圆环（各自独立设置）
     ring1: {
       visible: true,
@@ -388,6 +391,14 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     fView.add(chinaParams, "float", 0, 0.6, 0.02).name(t("china.float"));
     fView.add(chinaParams, "terrain", true).name(t("china.terrain"));
     fView.add(chinaParams, "terrainAmount", 0, 1, 0.02).name(t("china.terrainAmount"));
+    fView
+      .add(chinaParams, "depth", 0.05, 0.8, 0.01)
+      .name(t("china.depth"))
+      .onFinishChange(() => rebuildLevel());
+    fView
+      .add(chinaParams, "bevel", 0, 0.2, 0.005)
+      .name(t("china.bevel"))
+      .onFinishChange(() => rebuildLevel());
 
     const fRing = chinaGui.addFolder(t("china.folderRing"));
     const ringCfgs = [chinaParams.ring1, chinaParams.ring2];
@@ -432,6 +443,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   let level = "nation";
   let currentAdcode = "100000";
   let currentName = "";
+  let buildCtx = null; // 记录当前层级构建上下文，用于 depth/bevel 变化时重绘
   let currentZMin = -5,
     currentZMax = 5;
   let hovered = null;
@@ -529,11 +541,11 @@ export function createChinaMap({ container, rendererDom, width, height }) {
 
   function makeDistrict(shape, topMat, sideMat) {
     const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: DEPTH,
+      depth: chinaParams.depth,
       bevelEnabled: true,
       bevelSegments: 1,
-      bevelSize: 0.06,
-      bevelThickness: 0.06,
+      bevelSize: chinaParams.bevel,
+      bevelThickness: chinaParams.bevel,
       steps: 1,
     });
     const mesh = new THREE.Mesh(geo, [topMat, sideMat]);
@@ -568,6 +580,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   }
 
   function buildLevel(features, levelName, adcode, name) {
+    buildCtx = { features, levelName, adcode, name };
     clearRoot();
     const proj = makeProjection(features);
     const y = 0.45;
@@ -580,6 +593,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
       const g = new THREE.Group();
       const topMat = createTopMaterial();
       const sideMat = createSideMaterial();
+      sideMat.uniforms.uDepth.value = chinaParams.depth;
       topMat.uniforms.uGlowAmount.value = chinaParams.glow;
       // 地形贴图：绑定纹理并按当前投影把 shape 坐标映射到中国地形贴图
       topMat.uniforms.uTex.value = terrainTex;
@@ -631,6 +645,12 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     titleEl.textContent = t(titleKey).replace("{name}", tName(name || ""));
     backBtn.style.display = levelName === "nation" ? "none" : "";
     loadingEl.style.display = "none";
+  }
+
+  // 挤出厚度 / 轮廓放大变化时，重绘当前层级（Geometry 需重建）
+  function rebuildLevel() {
+    if (!buildCtx) return;
+    buildLevel(buildCtx.features, buildCtx.levelName, buildCtx.adcode, buildCtx.name);
   }
 
   async function ensureNation() {
@@ -846,7 +866,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
     sideScanPhase += delta * chinaParams.sideScanSpeed;
     const sp = sideScanPhase % period;
     const sSweep = Math.min(sp / dur, 1);
-    const sideScanPos = DEPTH * sSweep; // 底部 0 -> 顶部 DEPTH
+    const sideScanPos = chinaParams.depth * sSweep; // 底部 0 -> 顶部 depth
     const sReveal = sp < dur ? Math.min(sp / fade, (dur - sp) / fade, 1) : 0;
     const sideScanIntensity = chinaParams.sideScanOn ? chinaParams.sideScanIntensity * sReveal : 0;
     for (const m of currentSideMats) {

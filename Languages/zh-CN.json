@@ -128,6 +128,8 @@
     "china.float": "悬浮高度",
     "china.terrain": "显示地形",
     "china.terrainAmount": "地形强度",
+    "china.depth": "挤出厚度",
+    "china.bevel": "轮廓放大(倒角)",
     "china.folderRing": "旋转圆环",
     "china.ring1": "圆环 1（内）",
     "china.ring2": "圆环 2（外）",
