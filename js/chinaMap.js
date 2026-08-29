@@ -337,7 +337,7 @@ export function createChinaMap({ container, rendererDom, width, height }) {
   // 说明：云图有透明边距（图 200×100 只有中心 75% 是云）。用 background-size 仅放大到
   // 云仍完整留在格子里（120%），确保软边不被格子的直线裁掉；再用“高抖动”的散布摆放，
   // 看起来凌乱自然而非规整表格。密度 6 行 × 12 列 ≈ 72 朵（约原来的 3 倍）。
-  const CLOUD_BG_SIZE = "120% 120%"; // 云占格子约 90%，四周留透明边，软边不被切
+  const CLOUD_BG_SIZE = "100% 100%"; // 不放大，云（占图约 75%）完整留在格子里，软边不被切
   function spawnClouds() {
     const ov = ensureCloudOverlay();
     ov.innerHTML = "";
